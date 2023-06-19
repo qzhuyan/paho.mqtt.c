@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 #include "mutex_type.h" /* Needed for mutex_type */
+#include <msquic.h>
 
-#define SOCKET int
+typedef HQUIC SOCKET;
 
 /*
  * Network write buffers for an MQTT packet

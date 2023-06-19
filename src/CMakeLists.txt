@@ -48,7 +48,6 @@ SET(common_src
   SHA1.c
   WebSocket.c
   Proxy.c
-  quic.c
 )
 
 IF (NOT PAHO_HIGH_PERFORMANCE)
@@ -304,7 +303,7 @@ IF (PAHO_WITH_SSL)
         ENDFOREACH()
     ENDIF()
 
-    IF (PAHO_WITH_MSQUIC)
+    IF (PAHO_WITH_MSQUIC AND PAHO_BUILD_SHARED)
     # Add library
     include(ExternalProject)
     ExternalProject_Add(msquic_external
@@ -336,6 +335,8 @@ IF (PAHO_WITH_SSL)
 
     TARGET_LINK_LIBRARIES(paho-mqtt3cs PRIVATE msquic)
     TARGET_LINK_LIBRARIES(paho-mqtt3as PRIVATE msquic)
+    TARGET_SOURCES(paho-mqtt3as PRIVATE quic.c)
+    TARGET_SOURCES(paho-mqtt3cs PRIVATE quic.c)
     SET_PROPERTY(TARGET common_ssl_obj PROPERTY COMPILE_DEFINITIONS "MSQUIC=1;OPENSSL=1;PAHO_MQTT_EXPORTS=1")
 
     ENDIF()

@@ -617,7 +617,12 @@ int WebSocket_getch(networkHandles *net, char* c)
 			rc = TCPSOCKET_COMPLETE;
 		}
 	}
-#if defined(OPENSSL)
+#if defined(MSQUIC) && !defined(PAHO_MQTT_STATIC)
+	else if (net->qstrm)
+	{
+		rc = QUIC_getch(net->qstrm, c);
+	}
+#elif defined(OPENSSL)
 	else if ( net->ssl )
 		rc = SSLSocket_getch(net->ssl, net->socket, c);
 #endif

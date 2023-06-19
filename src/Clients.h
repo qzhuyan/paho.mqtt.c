@@ -30,6 +30,9 @@
 #if defined(OPENSSL)
 #include <openssl/ssl.h>
 #endif
+#if defined(MSQUIC) && !defined(PAHO_MQTT_STATIC)
+#include <msquic.h>
+#endif
 #include "MQTTClient.h"
 #include "LinkedList.h"
 #include "MQTTClientPersistence.h"
@@ -87,6 +90,11 @@ typedef struct
 	SSL_CTX* ctx;
 	char *https_proxy;
 	char *https_proxy_auth;
+#endif
+#if defined(MSQUIC)
+	HQUIC* qconn;
+	HQUIC* qstrm;
+	// maybe some ctx
 #endif
 	char *http_proxy;
 	char *http_proxy_auth;
