@@ -99,6 +99,9 @@ void MQTTAsync_global_init(MQTTAsync_init_options* inits)
 #if defined(OPENSSL)
 	SSLSocket_handleOpensslInit(inits->do_openssl_init);
 #endif
+#if defined(MSQUIC)
+	QUIC_handleInit(inits->do_msquic_init);
+#endif
 }
 
 #if !defined(min)
@@ -335,6 +338,9 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 		 && strncmp(URI_MQTTS, serverURI, strlen(URI_MQTTS)) != 0
 		 && strncmp(URI_WSS, serverURI, strlen(URI_WSS)) != 0
 #endif
+#if defined(MSQUIC)
+		 && strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) != 0
+#endif
 			)
 		{
 			rc = MQTTASYNC_BAD_PROTOCOL;
@@ -371,6 +377,10 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 #if defined(OPENSSL)
 		SSLSocket_initialize();
 #endif
+#if defined(MSQUIC)
+		MSQUIC_initialize();
+#endif
+
 		global_initialized = 1;
 	}
 	if ((m = malloc(sizeof(MQTTAsyncs))) == NULL)
@@ -405,6 +415,14 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 		serverURI += strlen(URI_WSS);
 		m->ssl = 1;
 		m->websocket = 1;
+	}
+#endif
+#if defined(MSQUIC)
+	else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
+	{
+		serverURI += strlen(URI_QUIC);
+		m->ssl = 3;
+		m->quic = 1;
 	}
 #endif
 	if ((m->serverURI = MQTTStrdup(serverURI)) == NULL)
@@ -575,6 +593,14 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 		goto exit;
 	}
 #endif
+#if defined(MSQUIC)
+	// we reuse ssl opts
+	if (m->quic && options->ssl == NULL)
+	{
+		rc = MQTTASYNC_NULL_PARAMETER;
+		goto exit;
+	}
+#endif
 
 	if (options->will) /* check validity of will options structure */
 	{
@@ -693,7 +719,6 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 		if (options->httpsProxy)
 			m->c->httpsProxy = MQTTStrdup(options->httpsProxy);
 	}
-
 	if (m->c->will)
 	{
 		free(m->c->will->payload);
@@ -740,7 +765,7 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 		m->c->will->topic = MQTTStrdup(options->will->topicName);
 	}
 
-#if defined(OPENSSL)
+#if defined(OPENSSL) // @TODO or MSQUIC
 	if (m->c->sslopts)
 	{
 		if (m->c->sslopts->trustStore)

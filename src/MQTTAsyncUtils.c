@@ -1316,6 +1316,14 @@ static int MQTTAsync_processCommand(void)
 						command->client->websocket = 1;
 					}
 #endif
+#if defined(MSQUIC)
+					else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
+					{
+						serverURI += strlen(URI_QUIC);
+						command->client->quic = 1;
+					}
+#endif
+
 				}
 			}
 
@@ -1329,7 +1337,16 @@ static int MQTTAsync_processCommand(void)
 			else
 				command->command.details.conn.MQTTVersion = command->client->c->MQTTVersion;
 
-			Log(TRACE_PROTOCOL, -1, "Connecting to serverURI %s with MQTT version %d", serverURI, command->command.details.conn.MQTTVersion);
+			Log(TRACE_PROTOCOL, -1, "Connecting to serverURI %s with MQTT version %d, proxy %c", serverURI, command->command.details.conn.MQTTVersion,
+				command->client->c->httpsProxy);
+#if defined(MSQUIC)
+			Log(TRACE_PROTOCOL, -1, "Connecting with quic... ssl: %d, proxy: %s", command->client->ssl, command->client->c->httpProxy);
+			rc = MQTTProtocol_connect(serverURI, command->client->c, command->client->ssl, command->client->websocket,
+					command->command.details.conn.MQTTVersion, command->client->connectProps, command->client->willProps, 100);
+			if (rc) // fallback to TCP/TlS @TODO
+			{
+				Log(TRACE_PROTOCOL, -1, "Fallback to TCP from QUIC: error %d", rc);
+#endif
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
 			rc = MQTTProtocol_connect(serverURI, command->client->c, command->client->ssl, command->client->websocket,
@@ -1347,7 +1364,9 @@ static int MQTTAsync_processCommand(void)
 					command->command.details.conn.MQTTVersion, command->client->connectProps, command->client->willProps);
 #endif
 #endif
-
+#if defined(MSQUIC)
+			}
+#endif
 			if (command->client->c->connect_state == NOT_IN_PROGRESS)
 				rc = SOCKET_ERROR;
 
@@ -2383,6 +2402,13 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 			MQTTPacket_send_disconnect(client, reasonCode, props);
 		MQTTAsync_lock_mutex(socket_mutex);
 		WebSocket_close(&client->net, WebSocket_CLOSE_NORMAL, NULL);
+#if defined(MSQUIC)
+		if (client->net.quic)
+		{
+			QUIC_close(client->net.quic);
+			client->net.quic = NULL;
+		}
+#endif
 #if defined(OPENSSL)
 		SSL_SESSION_free(client->session); /* is a no-op if session is NULL */
 		client->session = NULL; /* show the session has been freed */
@@ -2822,6 +2848,13 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 			default_port = WSS_DEFAULT_PORT;
 		}
 #endif
+#if defined(MSQUIC)
+		else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
+		{
+			serverURI += strlen(URI_QUIC);
+			default_port = SECURE_MQTT_DEFAULT_PORT; // UDP for quic
+		}
+#endif
 	}
 
 	if (m->c->connect_state == TCP_IN_PROGRESS) /* TCP connect started - check for completion */
@@ -2836,8 +2869,7 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 			goto exit;
 
 		Socket_clearPendingWrite(m->c->net.socket);
-
-#if defined(OPENSSL)
+#if defined(OPENSSL) // TCP_IN_PROGRESS
 		if (m->ssl)
 		{
 			int port;
@@ -2905,7 +2937,7 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 		}
 		else
 		{
-#endif
+#endif // SSL and TCP_IN_PROGRESS
 			if (m->c->net.http_proxy) {
 				m->c->connect_state = PROXY_CONNECT_IN_PROGRESS;
 				if ((rc = Proxy_connect( &m->c->net, 0, serverURI)) == SOCKET_ERROR )
@@ -2955,6 +2987,18 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 			if ((rc = MQTTPacket_send_connect(m->c, m->connect.details.conn.MQTTVersion,
 					m->connectProps, m->willProps)) == SOCKET_ERROR)
 				goto exit;
+		}
+	}
+#endif
+#if defined(MSQUIC)
+	else if (m->quic) /* QUIC connect */
+	{
+		QUIC_STATUS Status;
+		m->c->connect_state = WAIT_FOR_CONNACK; /* QUIC connect completed, in which case send the MQTT connect packet */
+		if ((rc = MQTTPacket_send_connect(m->c, m->connect.details.conn.MQTTVersion,
+					m->connectProps, m->willProps)) == SOCKET_ERROR)
+		{
+			goto exit;
 		}
 	}
 #endif

@@ -4,52 +4,48 @@
 #include <stdint.h>
 #include "mutex_type.h" /* Needed for mutex_type */
 #include <msquic.h>
+#include "Socket.h"
+#include "Clients.h"
 
-typedef HQUIC SOCKET;
+typedef HQUIC QSOCKET;
 
-/*
- * Network write buffers for an MQTT packet
- */
-typedef struct
-{
-	int count;         /**> number of buffers/buflens/frees */
-	char** buffers;    /**> array of byte buffers */
-	size_t* buflens;   /**> array of lengths of buffers */
-	int* frees;        /**> array of flags indicating whether each buffer needs to be freed */
-	uint8_t mask[4];   /**> websocket mask used to mask the buffer data, if any */
-} PacketBuffers;
 
+void MSQUIC_initialize(void);
+
+void QUIC_handleInit(int);
 
 void QUIC_outInitialize(void);
 void QUIC_outTerminate(void);
 
-SOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc);
+QSOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc);
 
-int QUIC_getch(SOCKET socket, char* c);
-char *QUIC_getdata(SOCKET socket, size_t bytes, size_t* actual_len, int* rc);
-int QUIC_putdatas(SOCKET socket, char* buf0, size_t buf0len, PacketBuffers bufs);
-int QUIC_close(SOCKET socket);
+int QUIC_getch(QSOCKET socket, char* c);
+char *QUIC_getdata(QSOCKET socket, size_t bytes, size_t* actual_len, int* rc);
+int QUIC_putdatas(QSOCKET socket, char* buf0, size_t buf0len, PacketBuffers bufs);
+int QUIC_close(QSOCKET socket);
 
-#if defined(__GNUC__) && defined(__linux__)
-/* able to use GNU's getaddrinfo_a to make timeouts possible */
-int QUIC_new(const char* addr, size_t addr_len, int port, SOCKET* socket, long timeout);
-#else
-int QUIC_new(const char* addr, size_t addr_len, int port, SOCKET* socket);
-#endif
+int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, long timeout);
 
-int QUIC_noPendingWrites(SOCKET socket);
-char* QUIC_getpeer(SOCKET sock);
 
-void QUIC_addPendingWrite(SOCKET socket);
-void QUIC_clearPendingWrite(SOCKET socket);
+int QUIC_noPendingWrites(QSOCKET socket);
+char* QUIC_getpeer(QSOCKET sock);
 
-typedef void QUIC_writeContinue(SOCKET socket);
+void QUIC_addPendingWrite(QSOCKET socket);
+void QUIC_clearPendingWrite(QSOCKET socket);
+
+typedef void QUIC_writeContinue(QSOCKET socket);
 void QUIC_setWriteContinueCallback(QUIC_writeContinue*);
 
-typedef void QUIC_writeComplete(SOCKET socket, int rc);
+typedef void QUIC_writeComplete(QSOCKET socket, int rc);
 void QUIC_setWriteCompleteCallback(QUIC_writeComplete*);
 
-typedef void QUIC_writeAvailable(SOCKET socket);
+typedef void QUIC_writeAvailable(QSOCKET socket);
 void QUIC_setWriteAvailableCallback(QUIC_writeAvailable*);
+
+
+// Callbacks
+QUIC_STATUS QUIC_API ClientStreamCallback(HQUIC Stream, void* Context, QUIC_STREAM_EVENT* Event);
+
+QUIC_STATUS QUIC_API ClientConnectionCallback(HQUIC Connection, void* Context, QUIC_CONNECTION_EVENT* Event);
 
 #endif // QUIC_H_

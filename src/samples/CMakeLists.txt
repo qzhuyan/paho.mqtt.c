@@ -47,6 +47,7 @@ TARGET_LINK_LIBRARIES(paho_cs_sub paho-mqtt3cs)
 
 ADD_EXECUTABLE(MQTTAsync_subscribe MQTTAsync_subscribe.c)
 ADD_EXECUTABLE(MQTTAsync_publish MQTTAsync_publish.c)
+ADD_EXECUTABLE(MQTTAsync_quic_publish MQTTAsync_quic_publish.c)
 ADD_EXECUTABLE(MQTTAsync_publish_time MQTTAsync_publish_time.c)
 ADD_EXECUTABLE(MQTTClient_subscribe MQTTClient_subscribe.c)
 ADD_EXECUTABLE(MQTTClient_publish MQTTClient_publish.c)
@@ -58,6 +59,7 @@ SET_TARGET_PROPERTIES(
 
 TARGET_LINK_LIBRARIES(MQTTAsync_subscribe paho-mqtt3a)
 TARGET_LINK_LIBRARIES(MQTTAsync_publish paho-mqtt3a)
+TARGET_LINK_LIBRARIES(MQTTAsync_quic_publish paho-mqtt3as)
 TARGET_LINK_LIBRARIES(MQTTAsync_publish_time paho-mqtt3a)
 TARGET_LINK_LIBRARIES(MQTTClient_subscribe paho-mqtt3c)
 TARGET_LINK_LIBRARIES(MQTTClient_publish paho-mqtt3c)

@@ -74,6 +74,10 @@
 #define URI_MQTTS "mqtts://"
 #endif
 
+#if defined(MSQUIC)
+#define URI_QUIC  "QUIC://"
+#endif
+
 #include "OsWrapper.h"
 
 #define URI_TCP  "tcp://"
@@ -417,6 +421,7 @@ int MQTTClient_createWithOptions(MQTTClient* handle, const char* serverURI, cons
          && strncmp(URI_SSL, serverURI, strlen(URI_SSL)) != 0
          && strncmp(URI_MQTTS, serverURI, strlen(URI_MQTTS)) != 0
 		 && strncmp(URI_WSS, serverURI, strlen(URI_WSS)) != 0
+		 && strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) != 0
 #endif
 			)
 		{
@@ -1881,6 +1886,13 @@ MQTTResponse MQTTClient_connectAll(MQTTClient handle, MQTTClient_connectOptions*
 				m->websocket = 1;
 			}
 #endif
+#if defined(MSQUIC)
+			else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
+			{
+				serverURI += strlen(URI_QUIC);
+				m->ssl = 3;
+			}
+#endif //QUIC
 			rc = MQTTClient_connectURI(handle, options, serverURI, connectProperties, willProperties);
 			if (rc.reasonCode == MQTTREASONCODE_SUCCESS)
 				break;

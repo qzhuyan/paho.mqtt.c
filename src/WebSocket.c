@@ -80,6 +80,10 @@
 #  endif
 #endif
 
+#if defined(MSQUIC)
+#include "quic.h"
+#endif /* MSQUIC */
+
 #if defined(OPENSSL)
 #include "SSLSocket.h"
 #include <openssl/rand.h>
@@ -618,9 +622,9 @@ int WebSocket_getch(networkHandles *net, char* c)
 		}
 	}
 #if defined(MSQUIC) && !defined(PAHO_MQTT_STATIC)
-	else if (net->qstrm)
+	else if (net->quic)
 	{
-		rc = QUIC_getch(net->qstrm, c);
+		rc = QUIC_getch(net->q_ctx->Stream, c);
 	}
 #elif defined(OPENSSL)
 	else if ( net->ssl )
@@ -969,8 +973,13 @@ int WebSocket_putdatas(networkHandles* net, char** buf0, size_t* buf0len, Packet
 	}
 	else
 	{
+#if defined(MSQUIC)
+		if (net->quic)
+			rc = QUIC_putdatas(net->q_ctx->Stream, *buf0, *buf0len, *bufs);
+		else
+#endif
 #if defined(OPENSSL)
-		if (net->ssl)
+		if (net->ssl == 1)
 			rc = SSLSocket_putdatas(net->ssl, net->socket, *buf0, *buf0len, *bufs);
 		else
 #endif

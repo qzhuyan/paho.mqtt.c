@@ -29,7 +29,7 @@
 #include <OsWrapper.h>
 #endif
 
-#define ADDRESS     "quic://mqtt.eclipseprojects.io:1883"
+#define ADDRESS     "quic://127.0.0.1:14567"
 #define CLIENTID    "ExampleClientPub"
 #define TOPIC       "MQTT Examples"
 #define PAYLOAD     "Hello World!"
@@ -139,10 +139,18 @@ int messageArrived(void* context, char* topicName, int topicLen, MQTTAsync_messa
 	return 1;
 }
 
+void trace_callback(enum MQTTASYNC_TRACE_LEVELS level, char* message)
+{
+	fprintf(stdout, "Trace : %d, %s\n", level, message);
+}
+
 int main(int argc, char* argv[])
 {
 	MQTTAsync client;
+	MQTTAsync_setTraceCallback(trace_callback);
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 	MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+	MQTTAsync_SSLOptions sslopts = MQTTAsync_SSLOptions_initializer;
 	int rc;
 
 	if ((rc = MQTTAsync_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTASYNC_SUCCESS)
@@ -161,7 +169,10 @@ int main(int argc, char* argv[])
 	conn_opts.cleansession = 1;
 	conn_opts.onSuccess = onConnect;
 	conn_opts.onFailure = onConnectFailure;
+	conn_opts.httpProxy = NULL;
+	conn_opts.httpsProxy = NULL;
 	conn_opts.context = client;
+	conn_opts.ssl = &sslopts;  // @TODO use it
 	if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS)
 	{
 		printf("Failed to start connect, return code %d\n", rc);

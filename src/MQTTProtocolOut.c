@@ -228,9 +228,15 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 	aClient->good = 1;
 
 	if (aClient->httpProxy)
+	{
+		Log(TRACE_PROTOCOL, -1, "w1: aClient->httpProxy: %p", aClient->httpProxy);
 		p0 = aClient->httpProxy;
+	}
 	else
+	{
+		Log(TRACE_PROTOCOL, -1, "w2: p0 = getenv(http_proxy): %p", aClient->httpProxy);
 		p0 = getenv("http_proxy");
+	}
 
 	if (p0)
 	{
@@ -241,6 +247,8 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 			Log(TRACE_PROTOCOL, -1, "Setting http proxy auth to %s", aClient->net.http_proxy_auth);
 	}
 
+
+	// Use proxy if any
 #if defined(OPENSSL)
 	if (aClient->httpsProxy)
 		p0 = aClient->httpsProxy;
@@ -260,6 +268,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 #else
 	if (aClient->net.http_proxy) {
 #endif
+	// parse ports
 		addr_len = MQTTProtocol_addressPort(aClient->net.http_proxy, &port, NULL, PROXY_DEFAULT_PORT);
 #if defined(__GNUC__) && defined(__linux__)
 		if (timeout < 0)
@@ -284,7 +293,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 	}
 #endif
 	else {
-#if defined(OPENSSL)
+#if defined(OPENSSL) || defined(MSQUIC)
 		addr_len = MQTTProtocol_addressPort(ip_address, &port, NULL, ssl ?
 				(websocket ? WSS_DEFAULT_PORT : SECURE_MQTT_DEFAULT_PORT) :
 				(websocket ? WS_DEFAULT_PORT : MQTT_DEFAULT_PORT) );
@@ -294,8 +303,21 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 #if defined(__GNUC__) && defined(__linux__)
 		if (timeout < 0)
 			rc = -1;
+#if defined(MSQUIC)
+		// currently we ignore proxy
+		else if (ssl == 3)
+		{
+			Log(TRACE_PROTOCOL, -1, "go quic! ");
+			rc = QUIC_new(ip_address, addr_len, port, &aClient->net, 100);
+		}
+#endif //MSQUIC
 		else
+		{
+#if defined(OPENSSL)
+			Log(TRACE_PROTOCOL, -1, "not go quic! ssl : %d", ssl);
+#endif
 			rc = Socket_new(ip_address, addr_len, port, &(aClient->net.socket), timeout);
+		}
 #else
 		rc = Socket_new(ip_address, addr_len, port, &(aClient->net.socket));
 #endif
@@ -305,7 +327,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 	else if (rc == 0)
 	{	/* TCP connect completed. If SSL, send SSL connect */
 #if defined(OPENSSL)
-		if (ssl)
+		if (ssl == 1)
 		{
 			if (aClient->net.https_proxy) {
 				aClient->connect_state = PROXY_CONNECT_IN_PROGRESS;
