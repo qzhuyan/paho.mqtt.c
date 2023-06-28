@@ -123,7 +123,11 @@ int MQTTPacket_send_connect(Clients* client, int MQTTVersion,
 	Log(LOG_PROTOCOL, 0, NULL, client->net.socket, client->clientID,
 			MQTTVersion, client->cleansession, rc);
 exit:
-	if (rc != TCPSOCKET_INTERRUPTED)
+	if (rc != TCPSOCKET_INTERRUPTED
+#if defined(MSQUIC)
+		&& !&client->net.q_ctx
+#endif
+)
 		free(buf);
 exit_nofree:
 	FUNC_EXIT_RC(rc);

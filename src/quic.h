@@ -20,7 +20,7 @@ void QUIC_outTerminate(void);
 QSOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc);
 
 int QUIC_getch(QUIC_CTX* q_ctx, char* c);
-char *QUIC_getdata(QSOCKET socket, size_t bytes, size_t* actual_len, int* rc);
+char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc);
 int QUIC_putdatas(QSOCKET socket, char* buf0, size_t buf0len, PacketBuffers bufs);
 int QUIC_close(QSOCKET socket);
 

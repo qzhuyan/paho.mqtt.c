@@ -229,7 +229,11 @@ int MQTTPacket_send(networkHandles* net, Header header, char* buffer, size_t buf
 	if (rc == TCPSOCKET_COMPLETE)
 		net->lastSent = MQTTTime_now();
 	
-	if (rc != TCPSOCKET_INTERRUPTED)
+	if (rc != TCPSOCKET_INTERRUPTED
+		#if defined(MSQUIC)
+		&& !net->q_ctx //delay free buf since msquic is async send
+		#endif
+       )
 	  free(buf);
 
 exit:
@@ -283,7 +287,11 @@ int MQTTPacket_sends(networkHandles* net, Header header, PacketBuffers* bufs, in
 	if (rc == TCPSOCKET_COMPLETE)
 		net->lastSent = MQTTTime_now();
 	
-	if (rc != TCPSOCKET_INTERRUPTED)
+	if (rc != TCPSOCKET_INTERRUPTED
+#if defined(MSQUIC)
+		&& !net->q_ctx //delay free buf since msquic is async send
+#endif
+		)
 	  free(buf);
 exit:
 	FUNC_EXIT_RC(rc);

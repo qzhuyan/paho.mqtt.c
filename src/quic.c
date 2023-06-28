@@ -22,10 +22,10 @@ HQUIC Configuration;
 // @TODO they should be put in to ctx
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-QUIC_BUFFER recv_buf[2];
-uint32_t recv_buf_cnt = 0;
+uint32_t recv_buf_size = 0;
 uint32_t recv_buf_offset = 0;
 HQUIC recv_pending_stream = NULL;
+char* recv_buf = NULL;
 
 const QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 
@@ -101,19 +101,11 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
 {
     FUNC_ENTRY;
     int res = -1;
-    // currently ignore socket
-    assert(recv_buf_cnt > 0);
-    size_t len;
-    for(int i=0; i < recv_buf_cnt; i++) {
-        len += recv_buf[i].Length;
-    }
-    assert(len > 0);
-    // @todo cross to buffer 1
-    *c = *recv_buf[0].Buffer+recv_buf_offset;
+    *c = *(recv_buf+recv_buf_offset);
     printf("quic_get_ch %d @ %d", *c, recv_buf_offset);
     //MsQuic->StreamReceiveComplete(q_ctx->Stream, 1);
-    recv_buf_offset += 1;
-    if(recv_buf_offset == len)
+    recv_buf_offset += 1; // one char
+    if(recv_buf_offset == recv_buf_size)
     {
         recv_buf_offset = 0;
     }
@@ -122,10 +114,42 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     return res;
 }
 
-char *QUIC_getdata(QSOCKET socket, size_t bytes, size_t* actual_len, int* rc)
+/**
+ *  Attempts to read a number of bytes from a socket, non-blocking. If a previous read did not
+ *  finish, then retrieve that data.
+ *  @param socket the socket to read from
+ *  @param bytes the number of bytes to read
+ *  @param actual_len the actual number of bytes read
+ *  @return completion code
+ */
+char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
 {
     FUNC_ENTRY;
-    FUNC_EXIT;
+    char* res = NULL;
+    if(bytes < recv_buf_size - recv_buf_offset)
+    {
+        *actual_len = bytes;
+        *rc = *actual_len;
+    }
+    else
+    {
+        *actual_len = recv_buf_size - recv_buf_offset;
+    }
+
+    res = recv_buf+recv_buf_offset;
+
+    recv_buf_offset += *actual_len;
+
+    if (recv_buf_offset == recv_buf_size)
+    {
+        MsQuic->StreamReceiveComplete(q_ctx->Stream, recv_buf_size);
+        recv_buf_offset = 0;
+        recv_buf = NULL;
+    }
+    
+
+    FUNC_EXIT_RC(*rc);
+    return res;
 }
 
 
@@ -146,8 +170,11 @@ int QUIC_putdatas(QSOCKET socket, char* buf0, size_t buf0len, PacketBuffers bufs
         goto Error;
     }
     SendBuffer = SendBufferRaw;
-    SendBuffer->Buffer = buf0;
-    SendBuffer->Length = buf0len;
+    // @TODO don't forget to free it
+    char* tmpbuf = malloc(buf0len*sizeof(char));
+    memcpy(tmpbuf, buf0, buf0len);
+    SendBuffer[0].Buffer = tmpbuf;
+    SendBuffer[0].Length = buf0len;
     for(int i=0; i< bufs.count; i++) {
         SendBuffer[i+1].Buffer = bufs.buffers[i];
         SendBuffer[i+1].Length = bufs.buflens[i];
@@ -454,12 +481,24 @@ ClientStreamCallback(
             break;
         }
         pthread_mutex_lock(&mutex);
-        recv_buf[0].Buffer = Event->RECEIVE.Buffers[0].Buffer;
-        recv_buf[0].Length = Event->RECEIVE.Buffers[0].Length;
-        recv_buf[1].Buffer = Event->RECEIVE.Buffers[1].Buffer;
-        recv_buf[1].Length = Event->RECEIVE.Buffers[1].Length;
-        recv_buf_cnt = Event->RECEIVE.BufferCount; // could be 0
+        /* recv_buf[0].Buffer = Event->RECEIVE.Buffers[0].Buffer; */
+        /* recv_buf[0].Length = Event->RECEIVE.Buffers[0].Length; */
+        /* recv_buf[1].Buffer = Event->RECEIVE.Buffers[1].Buffer; */
+        /* recv_buf[1].Length = Event->RECEIVE.Buffers[1].Length; */
+        recv_buf_size = Event->RECEIVE.TotalBufferLength;
+        size_t len = 0;
+
+        assert(recv_buf == NULL);
+        recv_buf = malloc(recv_buf_size);
+        size_t offset = 0;
+        for (int i=0; i<Event->RECEIVE.BufferCount; i++) {
+            memcpy(recv_buf+offset, Event->RECEIVE.Buffers[i].Buffer, Event->RECEIVE.Buffers[i].Length);
+            offset += Event->RECEIVE.Buffers[i].Length;
+            len += Event->RECEIVE.Buffers[i].Length;
+        }
+        assert(recv_buf_size == len);
         recv_pending_stream = Stream;
+        recv_buf_offset = 0;
         pthread_cond_signal(&cond);
         pthread_mutex_unlock(&mutex);
         return QUIC_STATUS_PENDING;

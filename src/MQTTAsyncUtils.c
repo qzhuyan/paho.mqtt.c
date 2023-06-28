@@ -1976,7 +1976,7 @@ void MQTTAsync_freeCommands(MQTTAsyncs* m)
 	FUNC_EXIT;
 }
 
-
+// @doc complete MQTT connect/connack procedure
 static int MQTTAsync_completeConnection(MQTTAsyncs* m, Connack* connack)
 {
 	int rc = MQTTASYNC_FAILURE;

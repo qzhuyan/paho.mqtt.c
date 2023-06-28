@@ -749,6 +749,12 @@ char *WebSocket_getdata(networkHandles *net, size_t bytes, size_t* actual_len)
 			}
 		}
 	}
+#if defined(MSQUIC)
+	else if (net->q_ctx)
+	{
+		rv = QUIC_getdata(net->q_ctx, bytes, actual_len, &rc);
+	}
+#endif
 #if defined(OPENSSL)
 	else if ( net->ssl )
 		rv = SSLSocket_getdata(net->ssl, net->socket, bytes, actual_len, &rc);
