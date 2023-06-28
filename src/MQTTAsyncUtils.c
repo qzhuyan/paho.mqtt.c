@@ -159,6 +159,17 @@ int MQTTAsync_randomJitter(int currentIntervalBase, int minInterval, int maxInte
 static int clientSockCompare(void* a, void* b)
 {
 	MQTTAsyncs* m = (MQTTAsyncs*)a;
+#if defined(MSQUIC)
+	if (m->c->net.q_ctx != NULL)
+	{
+		printf("comparing quic %p and %p\n", (int)(SOCKET *)m->c->net.q_ctx->Stream, *(HQUIC *)b);
+		// @TODO: super urgly compare, should compare HQUIC to HQUIC
+		int res = (int)m->c->net.q_ctx->Stream == (int)*(HQUIC *)b;
+		res?printf("compare res: %d\n", res):0;
+		return res;
+	}
+
+#endif
 	return m->c->net.socket == *(int*)b;
 }
 
@@ -3029,6 +3040,12 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	int rc1 = 0;
 
 	FUNC_ENTRY;
+#if defined(MSQUIC)
+	*sock = QUIC_wait_for_readable(timeout);
+	if(*sock != 0)
+		printf("QUIC is waiting at sock %d\n", *sock);
+	else
+#endif
 #if defined(OPENSSL)
 	if ((*sock = SSLSocket_getPendingRead()) == -1)
 	{
@@ -3047,12 +3064,12 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	}
 #endif
 	MQTTAsync_lock_mutex(mqttasync_mutex);
-	if (*sock > 0 && rc1 == 0)
+	if (*sock != -1 && *sock != 0 && rc1 == 0 )
 	{
 		MQTTAsyncs* m = NULL;
 		if (ListFindItem(MQTTAsync_handles, sock, clientSockCompare) != NULL)
 			m = (MQTTAsync)(MQTTAsync_handles->current->content);
-		if (m != NULL)
+			if (m != NULL)
 		{
 			Log(TRACE_MINIMUM, -1, "m->c->connect_state = %d", m->c->connect_state);
 			if (m->c->connect_state == TCP_IN_PROGRESS || m->c->connect_state == SSL_IN_PROGRESS || m->c->connect_state == WEBSOCKET_IN_PROGRESS)

@@ -624,7 +624,7 @@ int WebSocket_getch(networkHandles *net, char* c)
 #if defined(MSQUIC) && !defined(PAHO_MQTT_STATIC)
 	else if (net->quic)
 	{
-		rc = QUIC_getch(net->q_ctx->Stream, c);
+		rc = QUIC_getch(net->q_ctx, c);
 	}
 #elif defined(OPENSSL)
 	else if ( net->ssl )

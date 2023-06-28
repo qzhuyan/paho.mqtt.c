@@ -18,6 +18,15 @@ const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
 HQUIC Registration;
 HQUIC Configuration;
 
+
+// @TODO they should be put in to ctx
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+QUIC_BUFFER recv_buf[2];
+uint32_t recv_buf_cnt = 0;
+uint32_t recv_buf_offset = 0;
+HQUIC recv_pending_stream = NULL;
+
 const QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 
 BOOLEAN ClientLoadConfiguration (BOOLEAN Unsecure);
@@ -88,10 +97,29 @@ QSOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* r
     FUNC_EXIT;
 }
 
-int QUIC_getch(QSOCKET socket, char* c)
+int QUIC_getch(QUIC_CTX* q_ctx, char* c)
 {
     FUNC_ENTRY;
-    FUNC_EXIT;
+    int res = -1;
+    // currently ignore socket
+    assert(recv_buf_cnt > 0);
+    size_t len;
+    for(int i=0; i < recv_buf_cnt; i++) {
+        len += recv_buf[i].Length;
+    }
+    assert(len > 0);
+    // @todo cross to buffer 1
+    *c = *recv_buf[0].Buffer+recv_buf_offset;
+    printf("quic_get_ch %d @ %d", *c, recv_buf_offset);
+    //MsQuic->StreamReceiveComplete(q_ctx->Stream, 1);
+    recv_buf_offset += 1;
+    if(recv_buf_offset == len)
+    {
+        recv_buf_offset = 0;
+    }
+    res = 0;
+    FUNC_EXIT_RC(res);
+    return res;
 }
 
 char *QUIC_getdata(QSOCKET socket, size_t bytes, size_t* actual_len, int* rc)
@@ -99,6 +127,7 @@ char *QUIC_getdata(QSOCKET socket, size_t bytes, size_t* actual_len, int* rc)
     FUNC_ENTRY;
     FUNC_EXIT;
 }
+
 
 int QUIC_putdatas(QSOCKET socket, char* buf0, size_t buf0len, PacketBuffers bufs)
 {
@@ -233,6 +262,40 @@ void QUIC_setWriteAvailableCallback(QUIC_writeAvailable* mywriteavailable)
   FUNC_EXIT;
 }
 
+
+HQUIC QUIC_wait_for_readable(unsigned long timeout_ms)
+{
+    FUNC_ENTRY;
+    QSOCKET res = 0;
+    struct timespec timeout;
+    clock_gettime(CLOCK_REALTIME, &timeout);
+    timeout.tv_nsec += timeout_ms * 1000;
+    pthread_mutex_lock(&mutex);
+    if (recv_pending_stream == NULL)
+    {
+        int result = pthread_cond_timedwait(&cond, &mutex, &timeout);
+        if(result == ETIMEDOUT)
+        {
+            res = -1; // fake socket
+        }
+        else if(result == 0)
+        {
+            assert(recv_pending_stream != NULL);
+            printf("pending recv on Stream %p \n", recv_pending_stream);
+            res = recv_pending_stream;
+            MsQuic->StreamReceiveComplete(recv_pending_stream, 0);
+            recv_pending_stream = NULL;
+        }
+        else
+        {
+            printf("pthread_cond_timedwait failed, %d\n", result);
+            res = -1;
+        }
+    }
+    pthread_mutex_unlock(&mutex);
+    FUNC_EXIT_RC(res);
+    return res;
+}
 
 /*
 ** Internals
@@ -386,7 +449,20 @@ ClientStreamCallback(
         // Data was received from the peer on the stream.
         //
         printf("[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
-        break;
+        if (!Event->RECEIVE.BufferCount)
+        {
+            break;
+        }
+        pthread_mutex_lock(&mutex);
+        recv_buf[0].Buffer = Event->RECEIVE.Buffers[0].Buffer;
+        recv_buf[0].Length = Event->RECEIVE.Buffers[0].Length;
+        recv_buf[1].Buffer = Event->RECEIVE.Buffers[1].Buffer;
+        recv_buf[1].Length = Event->RECEIVE.Buffers[1].Length;
+        recv_buf_cnt = Event->RECEIVE.BufferCount; // could be 0
+        recv_pending_stream = Stream;
+        pthread_cond_signal(&cond);
+        pthread_mutex_unlock(&mutex);
+        return QUIC_STATUS_PENDING;
     case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
         //
         // The peer gracefully shut down its send direction of the stream.

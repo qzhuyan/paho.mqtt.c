@@ -347,6 +347,7 @@ int MQTTPacket_decode(networkHandles* net, size_t* value)
 				goto exit;
 		*value += (c & 127) * multiplier;
 		multiplier *= 128;
+		printf("now len is %ld\n", *value);
 	} while ((c & 128) != 0);
 exit:
 	FUNC_EXIT_RC(rc);
