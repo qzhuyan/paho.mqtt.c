@@ -1,5 +1,6 @@
 #include "StackTrace.h"
 #include "quic.h"
+#include "SocketBuffer.h"
 #include "Log.h"
 #include <msquic.h>
 
@@ -100,7 +101,15 @@ QSOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* r
 int QUIC_getch(QUIC_CTX* q_ctx, char* c)
 {
     FUNC_ENTRY;
-    int res = -1;
+    int rc = SOCKET_ERROR;
+    if ((rc = SocketBuffer_getQueuedChar(q_ctx->Socket, c)) != SOCKETBUFFER_INTERRUPTED)
+		goto exit;
+
+    if (!recv_buf || recv_buf_size == 0)
+    {
+        rc = SOCKET_ERROR;
+        goto exit;
+    }
     *c = *(recv_buf+recv_buf_offset);
     printf("quic_get_ch %d @ %d", *c, recv_buf_offset);
     //MsQuic->StreamReceiveComplete(q_ctx->Stream, 1);
@@ -109,9 +118,11 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     {
         recv_buf_offset = 0;
     }
-    res = 0;
-    FUNC_EXIT_RC(res);
-    return res;
+    SocketBuffer_queueChar(q_ctx->Socket, *c);
+    rc = 0;
+exit:
+    FUNC_EXIT_RC(rc);
+    return rc;
 }
 
 /**
@@ -125,31 +136,55 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
 char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
 {
     FUNC_ENTRY;
-    char* res = NULL;
-    if(bytes < recv_buf_size - recv_buf_offset)
+    char* buf = NULL;
+    size_t left_in_recvbuf = recv_buf_size - recv_buf_offset;
+    size_t queued_bytes = 0, desired_bytes = 0;
+
+    if (bytes == 0) // follow Socket_getdata
     {
-        *actual_len = bytes;
+        buf = SocketBuffer_complete(q_ctx);
+        goto exit;
+    }
+
+    // get from queued data, @FIXME should get a queued data
+    buf = SocketBuffer_getQueuedData(q_ctx->Socket, bytes, &queued_bytes);
+
+    desired_bytes = bytes - queued_bytes;
+
+    if(desired_bytes <= left_in_recvbuf)
+    {
+        // read all bytes
+        *actual_len = desired_bytes;
         *rc = *actual_len;
     }
     else
     {
-        *actual_len = recv_buf_size - recv_buf_offset;
+        // read less bytes
+        *actual_len = left_in_recvbuf;
     }
 
-    res = recv_buf+recv_buf_offset;
+    // read start point
+    memcpy(buf+queued_bytes,
+           recv_buf + recv_buf_offset,
+           desired_bytes);
 
+    // update offset for consumed
     recv_buf_offset += *actual_len;
 
     if (recv_buf_offset == recv_buf_size)
     {
+        // If all consumed, then complete the stream receive
         MsQuic->StreamReceiveComplete(q_ctx->Stream, recv_buf_size);
+        // @TODO with lock?
         recv_buf_offset = 0;
         recv_buf = NULL;
+        recv_buf_size = 0;
     }
-    
 
+
+exit:
     FUNC_EXIT_RC(*rc);
-    return res;
+    return buf;
 }
 
 
@@ -213,6 +248,8 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     net->quic = 1;
     net->ssl = 3; //@TODO set at other places?
     net->q_ctx = (QUIC_CTX *) malloc(sizeof(QUIC_CTX));
+    net->socket = creat("/dev/null", O_RDONLY);
+    net->q_ctx->Socket = net->socket;
 
     if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(Registration, ClientConnectionCallback, NULL, &net->q_ctx->Connection))) {
         printf("ConnectionOpen failed, 0x%x!\n", Status);
@@ -334,7 +371,7 @@ ClientLoadConfiguration(
 {
     FUNC_ENTRY;
     QUIC_SETTINGS Settings = {0};
-    uint64_t IdleTimeoutMs = 1000;
+    uint64_t IdleTimeoutMs = 10000;
     //const QUIC_BUFFER Alpn = { sizeof("MQTT") - 1, (uint8_t*)"MQTT" };
     //
     // Configures the client's idle timeout.

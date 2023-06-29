@@ -3,9 +3,11 @@
 
 #if defined(MSQUIC)
 #include <msquic.h>
+#include "Socket.h"
 typedef struct {
 	HQUIC Connection;
 	HQUIC Stream;
+    SOCKET Socket;
 } QUIC_CTX;
 #endif //MSQUIC
 
