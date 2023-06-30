@@ -159,6 +159,7 @@ int MQTTAsync_randomJitter(int currentIntervalBase, int minInterval, int maxInte
 static int clientSockCompare(void* a, void* b)
 {
 	MQTTAsyncs* m = (MQTTAsyncs*)a;
+	/*
 #if defined(MSQUIC)
 	if (m->c->net.q_ctx != NULL)
 	{
@@ -170,6 +171,7 @@ static int clientSockCompare(void* a, void* b)
 	}
 
 #endif
+*/
 	return m->c->net.socket == *(int*)b;
 }
 
@@ -3064,7 +3066,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	}
 #endif
 	MQTTAsync_lock_mutex(mqttasync_mutex);
-	if (*sock != -1 && *sock != 0 && rc1 == 0 )
+	if (*sock > 0 && rc1 == 0 )
 	{
 		MQTTAsyncs* m = NULL;
 		if (ListFindItem(MQTTAsync_handles, sock, clientSockCompare) != NULL)

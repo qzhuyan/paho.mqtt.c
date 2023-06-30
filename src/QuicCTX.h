@@ -7,7 +7,7 @@
 typedef struct {
 	HQUIC Connection;
 	HQUIC Stream;
-    SOCKET Socket;
+    SOCKET Socket; // not real socket, just key for the search in aList
 } QUIC_CTX;
 #endif //MSQUIC
 

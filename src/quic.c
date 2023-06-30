@@ -8,6 +8,9 @@
 #define UNREFERENCED_PARAMETER(P) (void)(P)
 #endif
 
+
+#define QUIC_SENT_ASYNC TCPSOCKET_INTERRUPTED
+
 const QUIC_API_TABLE* MsQuic;
 
 const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
@@ -25,7 +28,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 uint32_t recv_buf_size = 0;
 uint32_t recv_buf_offset = 0;
-HQUIC recv_pending_stream = NULL;
+QUIC_CTX* recv_pending_stream = NULL;
 char* recv_buf = NULL;
 
 const QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
@@ -142,7 +145,7 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
 
     if (bytes == 0) // follow Socket_getdata
     {
-        buf = SocketBuffer_complete(q_ctx);
+        buf = SocketBuffer_complete(q_ctx->Socket);
         goto exit;
     }
 
@@ -180,43 +183,51 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
         recv_buf = NULL;
         recv_buf_size = 0;
     }
-
-
 exit:
     FUNC_EXIT_RC(*rc);
     return buf;
 }
 
 
-int QUIC_putdatas(QSOCKET socket, char* buf0, size_t buf0len, PacketBuffers bufs)
+int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers bufs)
 {
     FUNC_ENTRY;
+    assert(q_ctx);
     QUIC_STATUS Status;
-    HQUIC Stream = socket;
-    QUIC_BUFFER* SendBufferRaw = NULL;
-    QUIC_BUFFER* SendBuffer = NULL;
+    HQUIC Stream = q_ctx->Stream;
+    QUIC_BUFFER *SendBuffer = malloc(sizeof(QUIC_BUFFER));
     size_t SendBufferLength = 1 + bufs.count;
+    SOCKET socket = q_ctx->Socket;
 
-    printf("total size: %ld\n", SendBufferLength*sizeof(QUIC_BUFFER));
-    SendBufferRaw = (QUIC_BUFFER*)malloc(sizeof(QUIC_BUFFER) * SendBufferLength);
-    if (SendBufferRaw == NULL) {
+
+    // SendBuffer data
+    size_t len = buf0len;
+    for(int i=0; i< bufs.count; i++) {
+        len += bufs.buflens[i];
+    }
+    SendBuffer->Length = len;
+
+    // SendBuffer data
+    char* tmpbuf = malloc(len*sizeof(char));
+
+    if (!tmpbuf) {
         printf("SendBuffer allocation failed!\n");
         Status = QUIC_STATUS_OUT_OF_MEMORY;
         goto Error;
     }
-    SendBuffer = SendBufferRaw;
-    // @TODO don't forget to free it
-    char* tmpbuf = malloc(buf0len*sizeof(char));
+    // reset
+    size_t offset = 0;
+    SendBuffer->Buffer = tmpbuf;
     memcpy(tmpbuf, buf0, buf0len);
-    SendBuffer[0].Buffer = tmpbuf;
-    SendBuffer[0].Length = buf0len;
+    offset = buf0len;
     for(int i=0; i< bufs.count; i++) {
-        SendBuffer[i+1].Buffer = bufs.buffers[i];
-        SendBuffer[i+1].Length = bufs.buflens[i];
+        memcpy(tmpbuf+offset, bufs.buffers[i], bufs.buflens[i]);
+        offset += bufs.buflens[i];
     }
-    Log(LOG_ERROR, -1, "QUIC_send: %d", SendBufferLength);
 
-    if (QUIC_FAILED(Status = MsQuic->StreamSend(Stream, SendBuffer, SendBufferLength, QUIC_SEND_FLAG_NONE, SendBuffer))) {
+    Log(LOG_ERROR, -1, "QUIC_send: %d", len);
+
+    if (QUIC_FAILED(Status = MsQuic->StreamSend(Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer))) {
         printf("StreamSend failed, 0x%x!\n", Status);
         goto Error;
     }
@@ -251,11 +262,11 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     net->socket = creat("/dev/null", O_RDONLY);
     net->q_ctx->Socket = net->socket;
 
-    if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(Registration, ClientConnectionCallback, NULL, &net->q_ctx->Connection))) {
+    if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(Registration, ClientConnectionCallback, net->q_ctx, &net->q_ctx->Connection))) {
         printf("ConnectionOpen failed, 0x%x!\n", Status);
         goto exit;
     }
-    if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection, QUIC_STREAM_OPEN_FLAG_NONE, ClientStreamCallback, NULL, &net->q_ctx->Stream)))
+    if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection, QUIC_STREAM_OPEN_FLAG_NONE, ClientStreamCallback, net->q_ctx, &net->q_ctx->Stream)))
     {
         printf("StreamOpen failed, 0x%x!\n", Status);
         goto exit;
@@ -345,9 +356,9 @@ HQUIC QUIC_wait_for_readable(unsigned long timeout_ms)
         else if(result == 0)
         {
             assert(recv_pending_stream != NULL);
-            printf("pending recv on Stream %p \n", recv_pending_stream);
-            res = recv_pending_stream;
-            MsQuic->StreamReceiveComplete(recv_pending_stream, 0);
+            printf("pending recv on Stream %p \n", recv_pending_stream->Stream);
+            res = recv_pending_stream->Socket;
+            //MsQuic->StreamReceiveComplete(recv_pending_stream->Stream, 0);
             recv_pending_stream = NULL;
         }
         else
@@ -498,7 +509,8 @@ ClientStreamCallback(
     )
 {
     FUNC_ENTRY;
-    UNREFERENCED_PARAMETER(Context);
+    QUIC_CTX *q_ctx = (QUIC_CTX *)Context;
+    assert(q_ctx);
     switch (Event->Type) {
     case QUIC_STREAM_EVENT_SEND_COMPLETE:
         //
@@ -518,10 +530,6 @@ ClientStreamCallback(
             break;
         }
         pthread_mutex_lock(&mutex);
-        /* recv_buf[0].Buffer = Event->RECEIVE.Buffers[0].Buffer; */
-        /* recv_buf[0].Length = Event->RECEIVE.Buffers[0].Length; */
-        /* recv_buf[1].Buffer = Event->RECEIVE.Buffers[1].Buffer; */
-        /* recv_buf[1].Length = Event->RECEIVE.Buffers[1].Length; */
         recv_buf_size = Event->RECEIVE.TotalBufferLength;
         size_t len = 0;
 
@@ -534,7 +542,7 @@ ClientStreamCallback(
             len += Event->RECEIVE.Buffers[i].Length;
         }
         assert(recv_buf_size == len);
-        recv_pending_stream = Stream;
+        recv_pending_stream = q_ctx;
         recv_buf_offset = 0;
         pthread_cond_signal(&cond);
         pthread_mutex_unlock(&mutex);

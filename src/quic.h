@@ -21,7 +21,7 @@ QSOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* r
 
 int QUIC_getch(QUIC_CTX* q_ctx, char* c);
 char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc);
-int QUIC_putdatas(QSOCKET socket, char* buf0, size_t buf0len, PacketBuffers bufs);
+int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers bufs);
 int QUIC_close(QSOCKET socket);
 
 int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, long timeout);
