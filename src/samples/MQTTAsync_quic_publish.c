@@ -189,6 +189,7 @@ int main(int argc, char* argv[])
 			usleep(10000L);
 		#endif
 
+	printf("Destroy client\n");
 	MQTTAsync_destroy(&client);
  	return rc;
 }

@@ -2416,12 +2416,14 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 		MQTTAsync_lock_mutex(socket_mutex);
 		WebSocket_close(&client->net, WebSocket_CLOSE_NORMAL, NULL);
 #if defined(MSQUIC)
-		if (client->net.quic)
+		if (client->net.q_ctx)
 		{
 			QUIC_close(&client->net, reasonCode);
-		} else {
+		} else
 #endif
 #if defined(OPENSSL)
+		if (client->net.ssl == 1)
+	{
 		SSL_SESSION_free(client->session); /* is a no-op if session is NULL */
 		client->session = NULL; /* show the session has been freed */
 		SSLSocket_close(&client->net);
@@ -2430,12 +2432,10 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 		client->net.socket = 0;
 #if defined(OPENSSL)
 		client->net.ssl = NULL;
+	}
 #endif
 		MQTTAsync_unlock_mutex(socket_mutex);
 	}
-#if defined(MSQUIC)
-	}
-#endif
 	client->connected = 0;
 	client->connect_state = NOT_IN_PROGRESS;
 	FUNC_EXIT;
@@ -3045,7 +3045,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 
 	FUNC_ENTRY;
 #if defined(MSQUIC)
-	*sock = QUIC_wait_for_readable(timeout);
+	*sock = QUIC_wait_for_readable(timeout, rc);
 	if(*sock != 0)
 		printf("QUIC is waiting at sock %d\n", *sock);
 	else

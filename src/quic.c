@@ -341,10 +341,10 @@ void QUIC_setWriteAvailableCallback(QUIC_writeAvailable* mywriteavailable)
 }
 
 
-HQUIC QUIC_wait_for_readable(unsigned long timeout_ms)
+SOCKET QUIC_wait_for_readable(unsigned long timeout_ms, int* rc)
 {
     FUNC_ENTRY;
-    QSOCKET res = 0;
+    SOCKET socket = 0;
     struct timespec timeout;
     clock_gettime(CLOCK_REALTIME, &timeout);
     timeout.tv_nsec += timeout_ms * 1000;
@@ -354,25 +354,32 @@ HQUIC QUIC_wait_for_readable(unsigned long timeout_ms)
         int result = pthread_cond_timedwait(&cond, &mutex, &timeout);
         if(result == ETIMEDOUT)
         {
-            res = -1; // fake socket
+            // no work
+            *rc = 0;
+            socket = 0;
         }
         else if(result == 0)
         {
             assert(recv_pending_stream != NULL);
             printf("pending recv on Stream %p \n", recv_pending_stream->Stream);
-            res = recv_pending_stream->Socket;
-            //MsQuic->StreamReceiveComplete(recv_pending_stream->Stream, 0);
-            recv_pending_stream = NULL;
+            socket = recv_pending_stream->Socket;
         }
         else
         {
             printf("pthread_cond_timedwait failed, %d\n", result);
-            res = -1;
+            *rc = SOCKET_ERROR;
         }
     }
+    else
+    {
+        socket = recv_pending_stream->Socket;
+        recv_pending_stream = NULL;
+        *rc = 0;
+    }
+
     pthread_mutex_unlock(&mutex);
-    FUNC_EXIT_RC(res);
-    return res;
+    FUNC_EXIT_RC(*rc);
+    return socket;
 }
 
 /*
@@ -527,15 +534,13 @@ ClientStreamCallback(
         //
         // Data was received from the peer on the stream.
         //
-        printf("[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
         if (!Event->RECEIVE.BufferCount)
         {
             break;
         }
-        pthread_mutex_lock(&mutex);
         recv_buf_size = Event->RECEIVE.TotalBufferLength;
-        size_t len = 0;
 
+        size_t len = 0;
         assert(recv_buf == NULL);
         recv_buf = malloc(recv_buf_size);
         size_t offset = 0;
@@ -547,6 +552,8 @@ ClientStreamCallback(
         assert(recv_buf_size == len);
         recv_pending_stream = q_ctx;
         recv_buf_offset = 0;
+        pthread_mutex_lock(&mutex);
+        printf("[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
         pthread_cond_signal(&cond);
         pthread_mutex_unlock(&mutex);
         return QUIC_STATUS_PENDING;
