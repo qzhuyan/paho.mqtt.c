@@ -188,7 +188,9 @@ exit:
     return buf;
 }
 
-
+/*
+**  @doc: put data to QUIC stream
+ */
 int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers bufs)
 {
     FUNC_ENTRY;
@@ -198,7 +200,6 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
     QUIC_BUFFER *SendBuffer = malloc(sizeof(QUIC_BUFFER));
     size_t SendBufferLength = 1 + bufs.count;
     SOCKET socket = q_ctx->Socket;
-
 
     // SendBuffer data
     size_t len = buf0len;
@@ -215,7 +216,6 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
         Status = QUIC_STATUS_OUT_OF_MEMORY;
         goto Error;
     }
-    // reset
     size_t offset = 0;
     SendBuffer->Buffer = tmpbuf;
     memcpy(tmpbuf, buf0, buf0len);
@@ -238,9 +238,12 @@ Error:
     return Status;
 }
 
-int QUIC_close(QSOCKET socket)
+int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
 {
     FUNC_ENTRY;
+    MsQuic->ConnectionShutdown(net->q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
+    net->quic = 0;
+    net->q_ctx = NULL; // application will no longer has access to the quic ctx
     FUNC_EXIT;
 }
 

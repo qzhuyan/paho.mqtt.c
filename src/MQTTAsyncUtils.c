@@ -2418,9 +2418,8 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 #if defined(MSQUIC)
 		if (client->net.quic)
 		{
-			QUIC_close(client->net.quic);
-			client->net.quic = NULL;
-		}
+			QUIC_close(&client->net, reasonCode);
+		} else {
 #endif
 #if defined(OPENSSL)
 		SSL_SESSION_free(client->session); /* is a no-op if session is NULL */
@@ -2434,6 +2433,9 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 #endif
 		MQTTAsync_unlock_mutex(socket_mutex);
 	}
+#if defined(MSQUIC)
+	}
+#endif
 	client->connected = 0;
 	client->connect_state = NOT_IN_PROGRESS;
 	FUNC_EXIT;
