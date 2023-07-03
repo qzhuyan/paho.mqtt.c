@@ -113,13 +113,17 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
         rc = SOCKET_ERROR;
         goto exit;
     }
+    // @TODO check read overflow
     *c = *(recv_buf+recv_buf_offset);
-    printf("quic_get_ch %d @ %d", *c, recv_buf_offset);
+    printf("quic_get_ch %d @ %d\n", *c, recv_buf_offset);
     //MsQuic->StreamReceiveComplete(q_ctx->Stream, 1);
     recv_buf_offset += 1; // one char
     if(recv_buf_offset == recv_buf_size)
     {
+        printf("receving complete %d\n", recv_buf_size);
+        MsQuic->StreamReceiveComplete(q_ctx->Stream, recv_buf_size);
         recv_buf_offset = 0;
+        recv_buf = NULL;
     }
     SocketBuffer_queueChar(q_ctx->Socket, *c);
     rc = 0;
@@ -174,14 +178,19 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
     // update offset for consumed
     recv_buf_offset += *actual_len;
 
+
     if (recv_buf_offset == recv_buf_size)
     {
         // If all consumed, then complete the stream receive
+        printf("receving complete %d\n", recv_buf_size);
         MsQuic->StreamReceiveComplete(q_ctx->Stream, recv_buf_size);
         // @TODO with lock?
         recv_buf_offset = 0;
         recv_buf = NULL;
         recv_buf_size = 0;
+    }
+    else {
+        printf("receving not complete %d/%d\n", recv_buf_offset, recv_buf_size);
     }
 exit:
     FUNC_EXIT_RC(*rc);
@@ -346,9 +355,9 @@ SOCKET QUIC_wait_for_readable(unsigned long timeout_ms, int* rc)
     FUNC_ENTRY;
     SOCKET socket = 0;
     struct timespec timeout;
+    pthread_mutex_lock(&mutex);
     clock_gettime(CLOCK_REALTIME, &timeout);
     timeout.tv_nsec += timeout_ms * 1000;
-    pthread_mutex_lock(&mutex);
     if (recv_pending_stream == NULL)
     {
         int result = pthread_cond_timedwait(&cond, &mutex, &timeout);
@@ -363,6 +372,8 @@ SOCKET QUIC_wait_for_readable(unsigned long timeout_ms, int* rc)
             assert(recv_pending_stream != NULL);
             printf("pending recv on Stream %p \n", recv_pending_stream->Stream);
             socket = recv_pending_stream->Socket;
+            recv_pending_stream = NULL;
+            *rc = 0;
         }
         else
         {
@@ -519,8 +530,10 @@ ClientStreamCallback(
     )
 {
     FUNC_ENTRY;
+    QUIC_STATUS ret = QUIC_STATUS_SUCCESS;
     QUIC_CTX *q_ctx = (QUIC_CTX *)Context;
     assert(q_ctx);
+
     switch (Event->Type) {
     case QUIC_STREAM_EVENT_SEND_COMPLETE:
         //
@@ -538,6 +551,7 @@ ClientStreamCallback(
         {
             break;
         }
+        pthread_mutex_lock(&mutex);
         recv_buf_size = Event->RECEIVE.TotalBufferLength;
 
         size_t len = 0;
@@ -552,11 +566,11 @@ ClientStreamCallback(
         assert(recv_buf_size == len);
         recv_pending_stream = q_ctx;
         recv_buf_offset = 0;
-        pthread_mutex_lock(&mutex);
         printf("[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
         pthread_cond_signal(&cond);
         pthread_mutex_unlock(&mutex);
-        return QUIC_STATUS_PENDING;
+        ret = QUIC_STATUS_PENDING;
+        break;
     case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
         //
         // The peer gracefully shut down its send direction of the stream.
@@ -582,7 +596,7 @@ ClientStreamCallback(
     default:
         break;
     }
-    return QUIC_STATUS_SUCCESS;
+    return ret;
 }
 
 
