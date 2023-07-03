@@ -229,7 +229,7 @@ int MQTTPacket_send(networkHandles* net, Header header, char* buffer, size_t buf
 	if (rc == TCPSOCKET_COMPLETE)
 		net->lastSent = MQTTTime_now();
 	
-	if (rc != TCPSOCKET_INTERRUPTED
+	if (rc != TCPSOCKET_INTERRUPTED // @FIXME we don't need this anymore
 		#if defined(MSQUIC)
 		&& !net->q_ctx //delay free buf since msquic is async send
 		#endif
@@ -287,7 +287,7 @@ int MQTTPacket_sends(networkHandles* net, Header header, PacketBuffers* bufs, in
 	if (rc == TCPSOCKET_COMPLETE)
 		net->lastSent = MQTTTime_now();
 	
-	if (rc != TCPSOCKET_INTERRUPTED
+	if (rc != TCPSOCKET_INTERRUPTED // @FIXME we don't need this anymore
 #if defined(MSQUIC)
 		&& !net->q_ctx //delay free buf since msquic is async send
 #endif
@@ -355,7 +355,6 @@ int MQTTPacket_decode(networkHandles* net, size_t* value)
 				goto exit;
 		*value += (c & 127) * multiplier;
 		multiplier *= 128;
-		printf("now len is %ld\n", *value);
 	} while ((c & 128) != 0);
 exit:
 	FUNC_EXIT_RC(rc);

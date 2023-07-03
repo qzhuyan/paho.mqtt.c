@@ -3006,7 +3006,7 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 	}
 #endif
 #if defined(MSQUIC)
-	else if (m->quic) /* QUIC connect */
+	else if (m->quic) /* QUIC connect @TODO check m->c->connect_state*/
 	{
 		QUIC_STATUS Status;
 		m->c->connect_state = WAIT_FOR_CONNACK; /* QUIC connect completed, in which case send the MQTT connect packet */
@@ -3068,12 +3068,12 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	}
 #endif
 	MQTTAsync_lock_mutex(mqttasync_mutex);
-	if (*sock > 0 && rc1 == 0 )
+	if (*sock > 0 && rc1 == 0)
 	{
 		MQTTAsyncs* m = NULL;
 		if (ListFindItem(MQTTAsync_handles, sock, clientSockCompare) != NULL)
 			m = (MQTTAsync)(MQTTAsync_handles->current->content);
-			if (m != NULL)
+		if (m != NULL)
 		{
 			Log(TRACE_MINIMUM, -1, "m->c->connect_state = %d", m->c->connect_state);
 			if (m->c->connect_state == TCP_IN_PROGRESS || m->c->connect_state == SSL_IN_PROGRESS || m->c->connect_state == WEBSOCKET_IN_PROGRESS)
