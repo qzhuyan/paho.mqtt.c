@@ -985,7 +985,7 @@ int WebSocket_putdatas(networkHandles* net, char** buf0, size_t* buf0len, Packet
 		else
 #endif
 #if defined(OPENSSL)
-		if (net->ssl == 1)
+		if (net->ssl)
 			rc = SSLSocket_putdatas(net->ssl, net->socket, *buf0, *buf0len, *bufs);
 		else
 #endif

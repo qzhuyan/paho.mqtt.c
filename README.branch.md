@@ -17,12 +17,12 @@
 1.  `QUIC_handleInit`  for `MQTTAsync_global_init`
 1.  `MSQUIC_initialize` for `MQTTAsync_createWithOptions`
     This is per MQTTAsync creation
-1. In `MQTTProtocol_connect` distinguish ssl 3, this should be removed
+1. [Removed]  In `MQTTProtocol_connect` distinguish ssl 3, this should be removed
 1. In `WebSocket_putdatas` call QUIC_putdatas
-1. In `WebSocket_putdatas` call ssl if `net->ssl` eq 3
+1. [Removed] In `WebSocket_putdatas` call ssl if `net->ssl` eq 3
 
 ### MQTTAsync is extened for quic
-1. In `MQTTAsync_createWithOptions` Set m.ssl = 3 for QUIC ssl option parsing in MQTT
+1. [Removed] In `MQTTAsync_createWithOptions` Set m.ssl = 3 for QUIC ssl option parsing in MQTT
 1. In `MQTTAsync_connect` check options->ssl is set.
 1. struct `MQTTAsync_connectOptions` is extended with quic option
 1. In `MQTTAsync_processCommand`, client->quic is set to 1

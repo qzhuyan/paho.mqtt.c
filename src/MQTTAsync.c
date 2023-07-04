@@ -421,7 +421,7 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 	else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
 	{
 		serverURI += strlen(URI_QUIC);
-		m->ssl = 3;
+		m->ssl = 0;
 		m->quic = 1;
 	}
 #endif

@@ -201,7 +201,10 @@ exit:
  * @param long timeout how long to wait for a new socket to be created
  * @return return code
  */
-// @TODO #if defined MSQUIC and use quic flag
+#if defined(MSQUIC)
+int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int quic, int ssl, int websocket, int MQTTVersion,
+		MQTTProperties* connectProperties, MQTTProperties* willProperties, long timeout)
+#else
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
 int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int ssl, int websocket, int MQTTVersion,
@@ -217,6 +220,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 #else
 int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket, int MQTTVersion,
 		MQTTProperties* connectProperties, MQTTProperties* willProperties)
+#endif
 #endif
 #endif
 {
@@ -306,7 +310,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 			rc = -1;
 #if defined(MSQUIC)
 		// currently we ignore proxy
-		else if (ssl == 3)
+		else if(quic)
 		{
 			Log(TRACE_PROTOCOL, -1, "go quic! ");
 			rc = QUIC_new(ip_address, addr_len, port, &aClient->net, 100);
@@ -328,7 +332,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 	else if (rc == 0)
 	{	/* TCP connect completed. If SSL, send SSL connect */
 #if defined(OPENSSL)
-		if (ssl == 1)
+		if (ssl)
 		{
 			if (aClient->net.https_proxy) {
 				aClient->connect_state = PROXY_CONNECT_IN_PROGRESS;

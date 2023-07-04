@@ -315,6 +315,9 @@ typedef struct
 #if defined(OPENSSL)
 	int ssl;
 #endif
+#if defined(MSQUIC)
+	int quic;
+#endif
 	int websocket;
 	Clients* c;
 	MQTTClient_connectionLost* cl;
@@ -1239,6 +1242,10 @@ static MQTTResponse MQTTClient_connectURIVersion(MQTTClient handle, MQTTClient_c
 	}
 
 	Log(TRACE_MIN, -1, "Connecting to serverURI %s with MQTT version %d", serverURI, MQTTVersion);
+#if defined(MSQUIC)
+		rc = MQTTProtocol_connect(serverURI, m->c, m->quic, m->ssl, m->websocket, MQTTVersion, connectProperties, willProperties,
+			millisecsTimeout - MQTTTime_elapsed(start));
+#else
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
 	rc = MQTTProtocol_connect(serverURI, m->c, m->ssl, m->websocket, MQTTVersion, connectProperties, willProperties,
@@ -1252,6 +1259,7 @@ static MQTTResponse MQTTClient_connectURIVersion(MQTTClient handle, MQTTClient_c
 			millisecsTimeout - MQTTTime_elapsed(start));
 #else
 	rc = MQTTProtocol_connect(serverURI, m->c, m->websocket, MQTTVersion, connectProperties, willProperties);
+#endif
 #endif
 #endif
 	if (rc == SOCKET_ERROR)
