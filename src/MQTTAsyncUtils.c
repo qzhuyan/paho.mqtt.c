@@ -1352,7 +1352,7 @@ static int MQTTAsync_processCommand(void)
 
 			Log(TRACE_PROTOCOL, -1, "Connecting to serverURI %s with MQTT version %d, proxy %c", serverURI, command->command.details.conn.MQTTVersion,
 				command->client->c->httpsProxy);
-#if defined(MSQUIC)
+#if defined(MSQUIC) // @FIXME, this is not necessary
 			Log(TRACE_PROTOCOL, -1, "Connecting with quic... ssl: %d, proxy: %s", command->client->ssl, command->client->c->httpProxy);
 			rc = MQTTProtocol_connect(serverURI, command->client->c, command->client->ssl, command->client->websocket,
 					command->command.details.conn.MQTTVersion, command->client->connectProps, command->client->willProps, 100);
@@ -3008,7 +3008,6 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 #if defined(MSQUIC)
 	else if (m->quic) /* QUIC connect @TODO check m->c->connect_state*/
 	{
-		QUIC_STATUS Status;
 		m->c->connect_state = WAIT_FOR_CONNACK; /* QUIC connect completed, in which case send the MQTT connect packet */
 		if ((rc = MQTTPacket_send_connect(m->c, m->connect.details.conn.MQTTVersion,
 					m->connectProps, m->willProps)) == SOCKET_ERROR)

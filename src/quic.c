@@ -1,3 +1,4 @@
+// @TODO copyright
 #include "StackTrace.h"
 #include "quic.h"
 #include "SocketBuffer.h"
@@ -8,22 +9,23 @@
 #define UNREFERENCED_PARAMETER(P) (void)(P)
 #endif
 
-
-#define QUIC_SENT_ASYNC TCPSOCKET_INTERRUPTED
-
-const QUIC_API_TABLE* MsQuic;
-
-const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
-//
-// The QUIC handle to the registration object. This is the top level API object
-// that represents the execution context for all work done by MsQuic on behalf
-// of the app.
-//
+/*=================================*/
+/* Global QUIC handles             */
+/*=================================*/
+/* `Registration` Manages the execution context */
 HQUIC Registration;
+/* `Configuration` abstracts the configuration for a connection, */
+/*   security and common QUIC Settings */
 HQUIC Configuration;
 
+/*=================================*/
+/* Global QUIC Vars                */
+/*=================================*/
+const QUIC_API_TABLE* MsQuic = NULL;
+const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
 
-// @TODO they should be put in to ctx
+
+// @TODO they should be put into ctx
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 uint32_t recv_buf_size = 0;
@@ -35,9 +37,7 @@ const QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFIL
 
 BOOLEAN ClientLoadConfiguration (BOOLEAN Unsecure);
 
-//void ClientSend(HQUIC Stream);
-
-// @doc: init msquic stack
+// @doc: call from MQTTAsync_createWithOptions
 void MSQUIC_initialize()
 {
     FUNC_ENTRY;
@@ -65,18 +65,27 @@ Error:
     QUIC_outTerminate();
 }
 
+// @doc call from MQTTAsync_global_init, Global init of mqtt library
 void QUIC_handleInit(int boolean)
 {
     FUNC_ENTRY;
     FUNC_EXIT;
 }
 
+/*
+ * @doc Initialize the 'quic' module,
+ * call from `MQTTAsync_createWithOptions`
+*/
 void QUIC_outInitialize(void)
 {
     FUNC_ENTRY;
     FUNC_EXIT;
 }
 
+/*
+ * @doc Terminate the 'quic' module,
+ * call from `MQTTAsync_terminate`
+*/
 void QUIC_outTerminate(void)
 {
   FUNC_ENTRY;
@@ -349,7 +358,7 @@ void QUIC_setWriteAvailableCallback(QUIC_writeAvailable* mywriteavailable)
   FUNC_EXIT;
 }
 
-
+// @TODO rewrite with QUIC_getReadySocket
 SOCKET QUIC_wait_for_readable(unsigned long timeout_ms, int* rc)
 {
     FUNC_ENTRY;
@@ -600,71 +609,3 @@ ClientStreamCallback(
 }
 
 
-/*
-void
-ClientSend(
-    _In_ HQUIC Connection
-    )
-{
-    FUNC_ENTRY;
-    QUIC_STATUS Status;
-    HQUIC Stream = NULL;
-    uint8_t* SendBufferRaw;
-    QUIC_BUFFER* SendBuffer;
-
-    uint32_t SendBufferLength = 100;
-
-    //
-    // Create/allocate a new bidirectional stream. The stream is just allocated
-    // and no QUIC stream identifier is assigned until it's started.
-    //
-    if (QUIC_FAILED(Status = MsQuic->StreamOpen(Connection, QUIC_STREAM_OPEN_FLAG_NONE, ClientStreamCallback, NULL, &Stream))) {
-        printf("StreamOpen failed, 0x%x!\n", Status);
-        goto Error;
-    }
-
-    printf("[strm][%p] Starting...\n", Stream);
-
-    //
-    // Starts the bidirectional stream. By default, the peer is not notified of
-    // the stream being started until data is sent on the stream.
-    //
-    if (QUIC_FAILED(Status = MsQuic->StreamStart(Stream, QUIC_STREAM_START_FLAG_NONE))) {
-        printf("StreamStart failed, 0x%x!\n", Status);
-        MsQuic->StreamClose(Stream);
-        goto Error;
-    }
-
-    //
-    // Allocates and builds the buffer to send over the stream.
-    //
-    SendBufferRaw = (uint8_t*)malloc(sizeof(QUIC_BUFFER) + SendBufferLength);
-    if (SendBufferRaw == NULL) {
-        printf("SendBuffer allocation failed!\n");
-        Status = QUIC_STATUS_OUT_OF_MEMORY;
-        goto Error;
-    }
-    SendBuffer = (QUIC_BUFFER*)SendBufferRaw;
-    SendBuffer->Buffer = SendBufferRaw + sizeof(QUIC_BUFFER);
-    SendBuffer->Length = SendBufferLength;
-
-    printf("[strm][%p] Sending data...\n", Stream);
-
-    //
-    // Sends the buffer over the stream. Note the FIN flag is passed along with
-    // the buffer. This indicates this is the last buffer on the stream and the
-    // the stream is shut down (in the send direction) immediately after.
-    //
-    if (QUIC_FAILED(Status = MsQuic->StreamSend(Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer))) {
-        printf("StreamSend failed, 0x%x!\n", Status);
-        free(SendBufferRaw);
-        goto Error;
-    }
-
-Error:
-
-    if (QUIC_FAILED(Status)) {
-        MsQuic->ConnectionShutdown(Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, 0);
-    }
-}
-*/

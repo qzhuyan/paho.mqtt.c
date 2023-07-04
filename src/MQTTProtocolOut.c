@@ -201,6 +201,7 @@ exit:
  * @param long timeout how long to wait for a new socket to be created
  * @return return code
  */
+// @TODO #if defined MSQUIC and use quic flag
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
 int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int ssl, int websocket, int MQTTVersion,
