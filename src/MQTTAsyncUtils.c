@@ -3045,7 +3045,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 
 	FUNC_ENTRY;
 #if defined(MSQUIC)
-	*sock = QUIC_wait_for_readable(timeout, rc);
+	*sock = QUIC_getReadySocket(0, timeout, socket_mutex, rc);
 	if(*sock != 0)
 		printf("QUIC is waiting at sock %d\n", *sock);
 	else

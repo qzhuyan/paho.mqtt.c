@@ -114,12 +114,6 @@ void QUIC_outTerminate(void)
     }
 }
 
-QSOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc)
-{
-    FUNC_ENTRY;
-    FUNC_EXIT;
-}
-
 int QUIC_getch(QUIC_CTX* q_ctx, char* c)
 {
     FUNC_ENTRY;
@@ -372,8 +366,7 @@ void QUIC_setWriteAvailableCallback(QUIC_writeAvailable* mywriteavailable)
   FUNC_EXIT;
 }
 
-// @TODO rewrite with QUIC_getReadySocket
-SOCKET QUIC_wait_for_readable(unsigned long timeout_ms, int* rc)
+SOCKET QUIC_getReadySocket(int more_work, int timeout_ms, mutex_type unused_mutex, int* rc)
 {
     FUNC_ENTRY;
     SOCKET socket = 0;

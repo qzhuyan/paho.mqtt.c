@@ -17,7 +17,7 @@ void QUIC_handleInit(int);
 void QUIC_outInitialize(void);
 void QUIC_outTerminate(void);
 
-QSOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc);
+SOCKET QUIC_getReadySocket(int more_work, int timeout, mutex_type mutex, int* rc);
 
 int QUIC_getch(QUIC_CTX* q_ctx, char* c);
 char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc);
