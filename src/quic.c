@@ -42,12 +42,13 @@ void MSQUIC_initialize()
 {
     FUNC_ENTRY;
     QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
-    //
-    // Open a handle to the library and get the API function table.
-    //
-    if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
-        printf("MsQuicOpen2 failed, 0x%x!\n", Status);
-        goto Error;
+
+    if(!MsQuic)
+    {
+        printf("MsQuic is null, init it\n");
+        if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
+            printf("MsQuicOpen2 failed, 0x%x!\n", Status);
+        }
     }
 
     if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &Registration))) {
@@ -66,9 +67,18 @@ Error:
 }
 
 // @doc call from MQTTAsync_global_init, Global init of mqtt library
+// note, global init isn't a mandatory step.
 void QUIC_handleInit(int boolean)
 {
     FUNC_ENTRY;
+    QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
+    //
+    // Open a handle to the library and get the API function table.
+    //
+    if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
+        printf("MsQuicOpen2 failed, 0x%x!\n", Status);
+    }
+
     FUNC_EXIT;
 }
 
@@ -259,9 +269,13 @@ Error:
 int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
 {
     FUNC_ENTRY;
-    MsQuic->ConnectionShutdown(net->q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
+    if(net->q_ctx)
+    {
+        MsQuic->ConnectionShutdown(net->q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
+    }
     net->quic = 0;
     net->q_ctx = NULL; // application will no longer has access to the quic ctx
+    close(net->socket);
     FUNC_EXIT;
 }
 
@@ -278,7 +292,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     //assert(net->quic);
     assert(net->q_ctx == NULL);
     net->quic = 1;
-    net->ssl = 3; //@TODO set at other places?
+    net->ssl = 0; //@TODO set at other places?
     net->q_ctx = (QUIC_CTX *) malloc(sizeof(QUIC_CTX));
     net->socket = creat("/dev/null", O_RDONLY);
     net->q_ctx->Socket = net->socket;
