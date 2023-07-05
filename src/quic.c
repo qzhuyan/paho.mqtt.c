@@ -129,13 +129,13 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     // @TODO check read overflow
     *c = *(recv_buf+recv_buf_offset);
     printf("quic_get_ch %d @ %d\n", *c, recv_buf_offset);
-    //MsQuic->StreamReceiveComplete(q_ctx->Stream, 1);
     recv_buf_offset += 1; // one char
     if(recv_buf_offset == recv_buf_size)
     {
         printf("receving complete %d\n", recv_buf_size);
         MsQuic->StreamReceiveComplete(q_ctx->Stream, recv_buf_size);
         recv_buf_offset = 0;
+        free(recv_buf);
         recv_buf = NULL;
     }
     SocketBuffer_queueChar(q_ctx->Socket, *c);
@@ -199,6 +199,7 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
         MsQuic->StreamReceiveComplete(q_ctx->Stream, recv_buf_size);
         // @TODO with lock?
         recv_buf_offset = 0;
+        free(recv_buf);
         recv_buf = NULL;
         recv_buf_size = 0;
     }
@@ -556,8 +557,10 @@ ClientStreamCallback(
         // A previous StreamSend call has completed, and the context is being
         // returned back to the app.
         //
-        free(Event->SEND_COMPLETE.ClientContext);
         printf("[strm][%p] Data sent\n", Stream);
+        QUIC_BUFFER* sendbuff = (QUIC_BUFFER *) Event->SEND_COMPLETE.ClientContext;
+        free(sendbuff->Buffer);
+        free(sendbuff);
         break;
     case QUIC_STREAM_EVENT_RECEIVE:
         //

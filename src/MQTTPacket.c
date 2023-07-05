@@ -229,11 +229,7 @@ int MQTTPacket_send(networkHandles* net, Header header, char* buffer, size_t buf
 	if (rc == TCPSOCKET_COMPLETE)
 		net->lastSent = MQTTTime_now();
 	
-	if (rc != TCPSOCKET_INTERRUPTED // @FIXME we don't need this anymore
-		#if defined(MSQUIC)
-		&& !net->q_ctx //delay free buf since msquic is async send
-		#endif
-       )
+	if (rc != TCPSOCKET_INTERRUPTED)
 	  free(buf);
 
 exit:
