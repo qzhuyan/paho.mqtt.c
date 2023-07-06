@@ -95,6 +95,7 @@ cmake --build ./ && src/samples/MQTTAsync_quic_publish
 
 ## TODO
 
+1. Check all callbacks
 1. Support Reconnect
 1. Support fallback to TCP/TLS when first attempt fail
 1. Doc the functions with paho doc styles

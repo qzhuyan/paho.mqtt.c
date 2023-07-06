@@ -262,7 +262,7 @@ static int cmpsockfds(const void *p1, const void *p2)
 
 
 /**
- * Add a socket to the list of socket to check with select
+ * Add a socket to the list of socket to check with poll()
  * @param newSd the new socket to add
  */
 int Socket_addSocket(SOCKET newSd)

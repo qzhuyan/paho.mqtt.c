@@ -3,11 +3,19 @@
 #include "quic.h"
 #include "SocketBuffer.h"
 #include "Log.h"
+
 #include <msquic.h>
+#include <sys/eventfd.h>
+#include <sys/epoll.h>
+
 
 #ifndef UNREFERENCED_PARAMETER
 #define UNREFERENCED_PARAMETER(P) (void)(P)
 #endif
+
+static void maybe_recv_complete(QUIC_CTX*);
+static int QUIC_addSocket(SOCKET newSd);
+
 
 /*=================================*/
 /* Global QUIC handles             */
@@ -18,20 +26,18 @@ HQUIC Registration;
 /*   security and common QUIC Settings */
 HQUIC Configuration;
 
+/**
+ * Structure to hold all socket data for this module
+ */
+extern mutex_type socket_mutex;
+
+int epollfd_read = -1; /**< epoll file descriptor */
+
 /*=================================*/
 /* Global QUIC Vars                */
 /*=================================*/
 const QUIC_API_TABLE* MsQuic = NULL;
 const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
-
-
-// @TODO they should be put into ctx
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-uint32_t recv_buf_size = 0;
-uint32_t recv_buf_offset = 0;
-QUIC_CTX* recv_pending_stream = NULL;
-char* recv_buf = NULL;
 
 const QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 
@@ -49,6 +55,11 @@ void MSQUIC_initialize()
         if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
             printf("MsQuicOpen2 failed, 0x%x!\n", Status);
         }
+    }
+
+    if(-1 == epollfd_read)
+    {
+        epollfd_read = epoll_create1(0);
     }
 
     if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &Registration))) {
@@ -121,23 +132,18 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     if ((rc = SocketBuffer_getQueuedChar(q_ctx->Socket, c)) != SOCKETBUFFER_INTERRUPTED)
 		goto exit;
 
-    if (!recv_buf || recv_buf_size == 0)
+    pthread_mutex_lock(&q_ctx->mutex);
+    if (!q_ctx->recv_buf || q_ctx->recv_buf_size == 0)
     {
         rc = SOCKET_ERROR;
         goto exit;
     }
     // @TODO check read overflow
-    *c = *(recv_buf+recv_buf_offset);
-    printf("quic_get_ch %d @ %d\n", *c, recv_buf_offset);
-    recv_buf_offset += 1; // one char
-    if(recv_buf_offset == recv_buf_size)
-    {
-        printf("receving complete %d\n", recv_buf_size);
-        MsQuic->StreamReceiveComplete(q_ctx->Stream, recv_buf_size);
-        recv_buf_offset = 0;
-        free(recv_buf);
-        recv_buf = NULL;
-    }
+    *c = *(q_ctx->recv_buf + q_ctx->recv_buf_offset);
+    printf("quic_get_ch %d @ %d\n", *c, q_ctx->recv_buf_offset);
+    q_ctx->recv_buf_offset += 1; // one char
+    pthread_mutex_unlock(&q_ctx->mutex);
+    maybe_recv_complete(q_ctx);
     SocketBuffer_queueChar(q_ctx->Socket, *c);
     rc = 0;
 exit:
@@ -157,7 +163,7 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
 {
     FUNC_ENTRY;
     char* buf = NULL;
-    size_t left_in_recvbuf = recv_buf_size - recv_buf_offset;
+    size_t left_in_recvbuf = q_ctx->recv_buf_size - q_ctx->recv_buf_offset;
     size_t queued_bytes = 0, desired_bytes = 0;
 
     if (bytes == 0) // follow Socket_getdata
@@ -185,27 +191,13 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
 
     // read start point
     memcpy(buf+queued_bytes,
-           recv_buf + recv_buf_offset,
+           q_ctx->recv_buf + q_ctx->recv_buf_offset,
            desired_bytes);
 
     // update offset for consumed
-    recv_buf_offset += *actual_len;
+    q_ctx->recv_buf_offset += *actual_len;
 
-
-    if (recv_buf_offset == recv_buf_size)
-    {
-        // If all consumed, then complete the stream receive
-        printf("receving complete %d\n", recv_buf_size);
-        MsQuic->StreamReceiveComplete(q_ctx->Stream, recv_buf_size);
-        // @TODO with lock?
-        recv_buf_offset = 0;
-        free(recv_buf);
-        recv_buf = NULL;
-        recv_buf_size = 0;
-    }
-    else {
-        printf("receving not complete %d/%d\n", recv_buf_offset, recv_buf_size);
-    }
+    maybe_recv_complete(q_ctx);
 exit:
     FUNC_EXIT_RC(*rc);
     return buf;
@@ -289,9 +281,15 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     net->quic = 1;
     net->ssl = 0; //@TODO set at other places?
     net->q_ctx = (QUIC_CTX *) malloc(sizeof(QUIC_CTX));
-    net->socket = creat("/dev/null", O_RDONLY);
+    net->q_ctx->recv_buf = NULL;
+    net->q_ctx->recv_buf_size = 0;
+    net->q_ctx->recv_buf_offset = 0;
+    net->socket = eventfd(0, 0);
     net->q_ctx->Socket = net->socket;
+    pthread_mutex_init(&net->q_ctx->mutex, 0);
 
+    //@TODO: check return value
+    QUIC_addSocket(net->socket);
     if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(Registration, ClientConnectionCallback, net->q_ctx, &net->q_ctx->Connection))) {
         printf("ConnectionOpen failed, 0x%x!\n", Status);
         goto exit;
@@ -367,45 +365,49 @@ void QUIC_setWriteAvailableCallback(QUIC_writeAvailable* mywriteavailable)
   FUNC_EXIT;
 }
 
-SOCKET QUIC_getReadySocket(int more_work, int timeout_ms, mutex_type unused_mutex, int* rc)
+/**
+ *  Returns the next socket ready for communications as indicated by epoll
+ *  @param more_work flag to indicate more work is waiting, and thus a timeout value of 0 should
+ *  be used for the select
+ *  @param timeout the timeout to be used in ms
+ *  @param rc a value other than 0 indicates an error of the returned socket
+ *  @return the socket next ready, or 0 if none is ready
+ */
+SOCKET QUIC_getReadySocket(int more_work, int timeout_ms, mutex_type mutex, int* rc)
 {
     FUNC_ENTRY;
     SOCKET socket = 0;
     struct timespec timeout;
-    pthread_mutex_lock(&mutex);
+    struct epoll_event ev;
+    // @TODO lock mutex
+    //pthread_mutex_lock(&q_ctx->mutex);
     clock_gettime(CLOCK_REALTIME, &timeout);
     timeout.tv_nsec += timeout_ms * 1000;
-    if (recv_pending_stream == NULL)
+
+    Thread_lock_mutex(mutex);
+
+    if(epollfd_read == -1)
     {
-        int result = pthread_cond_timedwait(&cond, &mutex, &timeout);
-        if(result == ETIMEDOUT)
-        {
-            // no work
-            *rc = 0;
-            socket = 0;
-        }
-        else if(result == 0)
-        {
-            assert(recv_pending_stream != NULL);
-            printf("pending recv on Stream %p \n", recv_pending_stream->Stream);
-            socket = recv_pending_stream->Socket;
-            recv_pending_stream = NULL;
-            *rc = 0;
-        }
-        else
-        {
-            printf("pthread_cond_timedwait failed, %d\n", result);
-            *rc = SOCKET_ERROR;
-        }
+        *rc = 0;
     }
     else
     {
-        socket = recv_pending_stream->Socket;
-        recv_pending_stream = NULL;
+        *rc = epoll_wait(epollfd_read, &ev, 1, timeout_ms);
+    }
+    if (*rc == -1)
+    {
+        printf("epoll wait error: %s\n", strerror(errno));
+    }
+    else if(*rc >0)
+    {
+        uint64_t u;
+        read(ev.data.fd, &u, sizeof(uint64_t)); // Clear the event
+        printf("eventfd object is readable: %ld\n", u);
+        socket = ev.data.fd;
         *rc = 0;
     }
+    Thread_unlock_mutex(mutex);
 
-    pthread_mutex_unlock(&mutex);
     FUNC_EXIT_RC(*rc);
     return socket;
 }
@@ -484,7 +486,6 @@ ClientConnectionCallback(
         // The handshake has completed for the connection.
         //
         printf("[conn][%p] Connected\n", Connection);
-        //ClientSend(Connection);
         break;
     case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
         //
@@ -532,7 +533,6 @@ ClientConnectionCallback(
 }
 
 
-
 //
 // The clients's callback for stream events from MsQuic.
 //
@@ -570,24 +570,27 @@ ClientStreamCallback(
         {
             break;
         }
-        pthread_mutex_lock(&mutex);
-        recv_buf_size = Event->RECEIVE.TotalBufferLength;
+        pthread_mutex_lock(&q_ctx->mutex);
+        q_ctx->recv_buf_size = Event->RECEIVE.TotalBufferLength;
 
         size_t len = 0;
-        assert(recv_buf == NULL);
-        recv_buf = malloc(recv_buf_size);
+        assert(q_ctx->recv_buf == NULL);
+        q_ctx->recv_buf = malloc(q_ctx->recv_buf_size);
         size_t offset = 0;
         for (int i=0; i<Event->RECEIVE.BufferCount; i++) {
-            memcpy(recv_buf+offset, Event->RECEIVE.Buffers[i].Buffer, Event->RECEIVE.Buffers[i].Length);
+            memcpy(q_ctx->recv_buf+offset, Event->RECEIVE.Buffers[i].Buffer, Event->RECEIVE.Buffers[i].Length);
             offset += Event->RECEIVE.Buffers[i].Length;
             len += Event->RECEIVE.Buffers[i].Length;
         }
-        assert(recv_buf_size == len);
-        recv_pending_stream = q_ctx;
-        recv_buf_offset = 0;
+        assert(q_ctx->recv_buf_size == len);
+        q_ctx->recv_buf_offset = 0;
         printf("[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
-        pthread_cond_signal(&cond);
-        pthread_mutex_unlock(&mutex);
+        //pthread_cond_signal(&cond);
+        if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
+        {
+            printf("write eventfd: %d error: %s", q_ctx->Socket, strerror(errno));
+        }
+        pthread_mutex_unlock(&q_ctx->mutex);
         ret = QUIC_STATUS_PENDING;
         break;
     case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
@@ -619,3 +622,47 @@ ClientStreamCallback(
 }
 
 
+void maybe_recv_complete(QUIC_CTX *q_ctx)
+{
+    if(!q_ctx)
+    {
+        return;
+    }
+    // @TODO this lock may not be necessary since
+    // stream callback with receive event shall not be triggered
+    // due to partial receive
+    pthread_mutex_lock(&q_ctx->mutex);
+    if(q_ctx->recv_buf_offset == q_ctx->recv_buf_size)
+    {
+        printf("receving complete %d\n", q_ctx->recv_buf_size);
+        free(q_ctx->recv_buf);
+        q_ctx->recv_buf_offset = 0;
+        q_ctx->recv_buf = NULL;
+        q_ctx->recv_buf_size = 0;
+    }
+    MsQuic->StreamReceiveComplete(q_ctx->Stream, q_ctx->recv_buf_size);
+    pthread_mutex_unlock(&q_ctx->mutex);
+}
+
+/**
+ * Add a socket to the list of socket to check with poll()
+ * @param newSd the new event socket to add
+ */
+int QUIC_addSocket(SOCKET newSd)
+{
+	int rc = 0;
+
+	FUNC_ENTRY;
+	Thread_lock_mutex(socket_mutex);
+    struct epoll_event ev;
+    ev.events = EPOLLIN | EPOLLET;
+    ev.data.fd = newSd;
+    if (-1 == epoll_ctl(epollfd_read, EPOLL_CTL_ADD, newSd, &ev)) {
+        Log(LOG_FATAL, -1, "epoll_ctl error: %s\n", strerror(errno));
+    }
+    Log(TRACE_MINIMUM, -1, "epoll_ctl add socket success\n");
+exit:
+	Thread_unlock_mutex(socket_mutex);
+	FUNC_EXIT_RC(rc);
+	return rc;
+}

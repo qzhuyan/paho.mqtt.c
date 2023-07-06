@@ -244,6 +244,9 @@ int SocketBuffer_getQueuedChar(SOCKET socket, char* c)
 			goto exit;
 		}
 	}
+	else {
+		Log(TRACE_MAXIMUM, -1, "Socket not found in socket buffer queue\n");
+	}
 exit:
 	FUNC_EXIT_RC(rc);
 	return rc;  /* there was no queued char if rc is SOCKETBUFFER_INTERRUPTED*/
