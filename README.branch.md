@@ -58,7 +58,7 @@ How to map socket to connection/stream?
     
    callers are
    
-   a. handle rc = `SOCKET_ERROR` in `MQTTAsync_receiveThread` that `mQTTAsync_cycle` returns
+   a. handle rc = `SOCKET_ERROR` in `MQTTAsync_receiveThread` that `MQTTAsync_cycle` returns
    b. checking conn timeout in `MQTTAsync_checkTimeouts`
    c. receving MQTT DISCONNECT in `MQTTAsync_receive`
    d. handle `MQTTAsync_completeConnection` fail in `MQTTAsync_receive`

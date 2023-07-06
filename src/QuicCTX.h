@@ -12,6 +12,7 @@ typedef struct {
     char* recv_buf;
     uint32_t recv_buf_size;
     uint32_t recv_buf_offset;
+    int is_closed;
 } QUIC_CTX;
 #endif //MSQUIC
 

@@ -51,7 +51,7 @@ void MSQUIC_initialize()
 
     if(!MsQuic)
     {
-        printf("MsQuic is null, init it\n");
+        Log(TRACE_MINIMUM, -1 , "MsQuic is null, init it\n");
         if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
             printf("MsQuicOpen2 failed, 0x%x!\n", Status);
         }
@@ -68,7 +68,7 @@ void MSQUIC_initialize()
     }
 
     if (!ClientLoadConfiguration(TRUE)) {
-        printf("!!!!!!!client load conf failed, 0x%x!\n", Status);
+        Log(LOG_ERROR, -1, "!!!!!!!client load conf failed, 0x%x!\n", Status);
         goto Error;
     }
     FUNC_EXIT;
@@ -145,7 +145,15 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     pthread_mutex_unlock(&q_ctx->mutex);
     maybe_recv_complete(q_ctx);
     SocketBuffer_queueChar(q_ctx->Socket, *c);
-    rc = 0;
+    if (q_ctx->is_closed)
+    {
+        Log(LOG_ERROR, -1, "socket %d closed", q_ctx->Socket);
+        rc = SOCKET_ERROR;
+    }
+    else
+    {
+        rc = 0;
+    }
 exit:
     FUNC_EXIT_RC(rc);
     return rc;
@@ -284,7 +292,8 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     net->q_ctx->recv_buf = NULL;
     net->q_ctx->recv_buf_size = 0;
     net->q_ctx->recv_buf_offset = 0;
-    net->socket = eventfd(0, 0);
+    net->q_ctx->is_closed = FALSE;
+    net->socket = eventfd(0, EFD_NONBLOCK);
     net->q_ctx->Socket = net->socket;
     pthread_mutex_init(&net->q_ctx->mutex, 0);
 
@@ -388,23 +397,32 @@ SOCKET QUIC_getReadySocket(int more_work, int timeout_ms, mutex_type mutex, int*
 
     if(epollfd_read == -1)
     {
+        // uninitialized
         *rc = 0;
     }
     else
     {
         *rc = epoll_wait(epollfd_read, &ev, 1, timeout_ms);
     }
+
     if (*rc == -1)
     {
-        printf("epoll wait error: %s\n", strerror(errno));
+        Log(LOG_ERROR, -1 , "epoll wait error: %s\n", strerror(errno));
     }
     else if(*rc >0)
     {
         uint64_t u;
-        read(ev.data.fd, &u, sizeof(uint64_t)); // Clear the event
-        printf("eventfd object is readable: %ld\n", u);
-        socket = ev.data.fd;
-        *rc = 0;
+        // Clear the event
+        if (0 == read(ev.data.fd, &u, sizeof(uint64_t)))
+            { //socket may closed
+                *rc = -1;
+            }
+            else
+            {
+                Log(TRACE_MINIMUM, -1, "eventfd object is readable: %ld\n", u);
+                socket = ev.data.fd;
+                *rc = 0;
+            }
     }
     Thread_unlock_mutex(mutex);
 
@@ -478,7 +496,8 @@ ClientConnectionCallback(
     )
 {
     FUNC_ENTRY;
-    UNREFERENCED_PARAMETER(Context);
+    QUIC_CTX *q_ctx = (QUIC_CTX *)Context;
+    pthread_mutex_lock(&q_ctx->mutex);
     printf("ClientConnectionCallback: event :%d\n", Event->Type);
     switch (Event->Type) {
     case QUIC_CONNECTION_EVENT_CONNECTED:
@@ -529,6 +548,7 @@ ClientConnectionCallback(
     default:
         break;
     }
+    pthread_mutex_unlock(&q_ctx->mutex);
     return QUIC_STATUS_SUCCESS;
 }
 
@@ -550,7 +570,7 @@ ClientStreamCallback(
     QUIC_STATUS ret = QUIC_STATUS_SUCCESS;
     QUIC_CTX *q_ctx = (QUIC_CTX *)Context;
     assert(q_ctx);
-
+    pthread_mutex_lock(&q_ctx->mutex);
     switch (Event->Type) {
     case QUIC_STREAM_EVENT_SEND_COMPLETE:
         //
@@ -570,7 +590,6 @@ ClientStreamCallback(
         {
             break;
         }
-        pthread_mutex_lock(&q_ctx->mutex);
         q_ctx->recv_buf_size = Event->RECEIVE.TotalBufferLength;
 
         size_t len = 0;
@@ -585,12 +604,10 @@ ClientStreamCallback(
         assert(q_ctx->recv_buf_size == len);
         q_ctx->recv_buf_offset = 0;
         printf("[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
-        //pthread_cond_signal(&cond);
         if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
         {
-            printf("write eventfd: %d error: %s", q_ctx->Socket, strerror(errno));
+            Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_RECEIVE, strerror(errno));
         }
-        pthread_mutex_unlock(&q_ctx->mutex);
         ret = QUIC_STATUS_PENDING;
         break;
     case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
@@ -614,10 +631,16 @@ ClientStreamCallback(
         if (!Event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
             MsQuic->StreamClose(Stream);
         }
+        q_ctx->is_closed = TRUE;
+        if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
+        {
+            Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE, strerror(errno));
+        }
         break;
     default:
         break;
     }
+    pthread_mutex_unlock(&q_ctx->mutex);
     return ret;
 }
 

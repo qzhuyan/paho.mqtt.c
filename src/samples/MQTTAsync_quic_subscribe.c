@@ -129,6 +129,11 @@ void onConnect(void* context, MQTTAsync_successData* response)
 }
 
 
+void trace_callback(enum MQTTASYNC_TRACE_LEVELS level, char* message)
+{
+	fprintf(stdout, "Trace : %d, %s\n", level, message);
+}
+
 int main(int argc, char* argv[])
 {
 	MQTTAsync client;
@@ -137,6 +142,9 @@ int main(int argc, char* argv[])
 	MQTTAsync_SSLOptions sslopts = MQTTAsync_SSLOptions_initializer;
 	int rc;
 	int ch;
+
+	MQTTAsync_setTraceCallback(trace_callback);
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 
 	if ((rc = MQTTAsync_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL))
 			!= MQTTASYNC_SUCCESS)

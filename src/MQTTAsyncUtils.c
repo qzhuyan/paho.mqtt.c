@@ -1353,12 +1353,14 @@ static int MQTTAsync_processCommand(void)
 			Log(TRACE_PROTOCOL, -1, "Connecting to serverURI %s with MQTT version %d, proxy %c", serverURI, command->command.details.conn.MQTTVersion,
 				command->client->c->httpsProxy);
 #if defined(MSQUIC)
-			Log(TRACE_PROTOCOL, -1, "Connecting with quic... ssl: %d, proxy: %s", command->client->ssl, command->client->c->httpProxy);
-			rc = MQTTProtocol_connect(serverURI, command->client->c, command->client->quic, command->client->ssl, command->client->websocket,
-					command->command.details.conn.MQTTVersion, command->client->connectProps, command->client->willProps, 100);
-			if (rc) // fallback to TCP/TlS @TODO
+			if(command->client->quic)
 			{
-				Log(TRACE_PROTOCOL, -1, "Fallback to TCP from QUIC: error %d", rc);
+				Log(TRACE_PROTOCOL, -1, "Connecting with quic... ssl: %d, proxy: %s", command->client->ssl, command->client->c->httpProxy);
+				rc = MQTTProtocol_connect(serverURI, command->client->c, command->client->quic, command->client->ssl, command->client->websocket,
+										  command->command.details.conn.MQTTVersion, command->client->connectProps, command->client->willProps, 100);
+			}
+			else
+			{
 #else
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
@@ -2417,7 +2419,7 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 		MQTTAsync_lock_mutex(socket_mutex);
 		WebSocket_close(&client->net, WebSocket_CLOSE_NORMAL, NULL);
 #if defined(MSQUIC)
-		if (client->net.q_ctx)
+		if (client->net.quic)
 		{
 			QUIC_close(&client->net, reasonCode);
 		} else
