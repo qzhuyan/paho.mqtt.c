@@ -424,7 +424,9 @@ int MQTTClient_createWithOptions(MQTTClient* handle, const char* serverURI, cons
          && strncmp(URI_SSL, serverURI, strlen(URI_SSL)) != 0
          && strncmp(URI_MQTTS, serverURI, strlen(URI_MQTTS)) != 0
 		 && strncmp(URI_WSS, serverURI, strlen(URI_WSS)) != 0
-		 && strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) != 0
+#endif
+#if defined(MSQUIC)
+		&& strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) != 0
 #endif
 			)
 		{
