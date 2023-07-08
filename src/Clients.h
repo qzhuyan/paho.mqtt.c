@@ -106,7 +106,7 @@ typedef struct
 /* connection states */
 /** no connection in progress, see connected value */
 #define NOT_IN_PROGRESS  0x0
-/** TCP connection in progress */
+/** TCP connection in progress (NONBLOCKING) */
 #define TCP_IN_PROGRESS  0x1
 /** SSL connection in progress */
 #define SSL_IN_PROGRESS  0x2

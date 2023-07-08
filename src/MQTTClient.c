@@ -1898,7 +1898,7 @@ MQTTResponse MQTTClient_connectAll(MQTTClient handle, MQTTClient_connectOptions*
 			else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
 			{
 				serverURI += strlen(URI_QUIC);
-				m->ssl = 3;
+				m->quic = 1;
 			}
 #endif //QUIC
 			rc = MQTTClient_connectURI(handle, options, serverURI, connectProperties, willProperties);

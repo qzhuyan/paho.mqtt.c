@@ -75,9 +75,47 @@ How to map socket to connection/stream?
   ▸   MQTTClient_disconnect_internal
   ▸   MQTTClient_run
 
-### New file src/QuicCTX file
+### New file src/QuicCTX.h file
+
+```
+typedef struct QUIC_CTX {
+    pthread_mutex_t mutex;    /* mutex lock */
+	HQUIC Connection;         /* MSQUIC Connection Handle */
+	HQUIC Stream;             /* MSQUIC Stream Handle */
+    SOCKET Socket;            /* eventfd, index of 'socket' to 'networkhandle' */
+    char* recv_buf;           /* buffer to receive data */
+    uint32_t recv_buf_size;   /* size of recv_buf */
+    uint32_t recv_buf_offset; /* offset of unconsumed data in recv_buf */
+    int is_closed;            /* Mark if connection is closed */
+} QUIC_CTX;
+
+```
 
 ### Unlike other transports, Send data are buffered in msquic
+
+## New Dynamic Allocations
+
+1. Send buffer
+   Allocate when send
+   Free in stream callback
+   
+1. Recv buffer
+   Allocates buffer in stream callback, event: 'RECEIVE.
+   Free in receiveComplete callback
+    
+1. QUIC CTX
+   Allocate in QUIC_new.
+   Dealloc in connection callback, event:
+   
+## Locks
+
+### Mutex
+
+1. QUIC_CTX.mutex
+
+Init: in `QUIC_new`
+Destory: in `ConnectionCallback`
+Threads: PAHO recv threads and MsQuic workthreads
 
 ## Build
 ```
@@ -89,24 +127,27 @@ cmake --build ./ && src/samples/MQTTAsync_quic_publish
 
 ## Limitation
 1. Does not support MQTT STATIC link
-1. Don't support any proxy 
+1. Don't support proxy 
+1. Only single stream
 1. No Windows support for now
-
+1. No sync API support
 
 ## TODO
 
+1. Double check mutex 
 1. Check all callbacks
-1. Support Reconnect
+1. TLS configuration
 1. Support fallback to TCP/TLS when first attempt fail
 1. Doc the functions with paho doc styles
-1. paho style logging
-1. fixing issue provided by Memory Allocation Tracing
 1. Add tests for quic transport
-1. Set quic flag to 2 in MQTTAsync to enable TCP/TLS fallback
 1. Support multi streams
    Connection is one MQTTAsync
    Depends on the stream type MQTTAsync could have recv thread or send thread
 1. Impl get peer
+1. [DONE] Support Reconnect
+1. [DONE] paho style logging
+1. [DONE] fixing issue provided by Memory Allocation Tracing
+1. [REJECT]Set quic flag to 2 in MQTTAsync to enable TCP/TLS fallback
 
 ## References
 

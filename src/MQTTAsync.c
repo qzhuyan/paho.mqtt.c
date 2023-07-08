@@ -421,7 +421,7 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 	else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
 	{
 		serverURI += strlen(URI_QUIC);
-		m->ssl = 0;
+		m->ssl = 0; // maybe not necessary
 		m->quic = 1;
 	}
 #endif
@@ -719,6 +719,7 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 		if (options->httpsProxy)
 			m->c->httpsProxy = MQTTStrdup(options->httpsProxy);
 	}
+
 	if (m->c->will)
 	{
 		free(m->c->will->payload);

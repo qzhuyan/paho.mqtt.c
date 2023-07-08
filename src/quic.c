@@ -51,9 +51,9 @@ void MSQUIC_initialize()
 
     if(!MsQuic)
     {
-        Log(TRACE_MINIMUM, -1 , "MsQuic is null, init it\n");
+        Log(TRACE_MINIMUM, -1 , "MsQuic is null, init it");
         if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
-            printf("MsQuicOpen2 failed, 0x%x!\n", Status);
+            Log(LOG_FATAL, -1, "MsQuicOpen2 failed, 0x%x!", Status);
         }
     }
 
@@ -63,7 +63,7 @@ void MSQUIC_initialize()
     }
 
     if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &Registration))) {
-        printf("RegistrationOpen failed, 0x%x!\n", Status);
+        Log(LOG_FATAL, -1, "RegistrationOpen failed, 0x%x!\n", Status);
         goto Error;
     }
 
@@ -87,7 +87,7 @@ void QUIC_handleInit(int boolean)
     // Open a handle to the library and get the API function table.
     //
     if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
-        printf("MsQuicOpen2 failed, 0x%x!\n", Status);
+        Log(LOG_FATAL, -1, "MsQuicOpen2 failed, 0x%x!", Status);
     }
 
     FUNC_EXIT;
@@ -140,7 +140,7 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     }
     // @TODO check read overflow
     *c = *(q_ctx->recv_buf + q_ctx->recv_buf_offset);
-    printf("quic_get_ch %d @ %d\n", *c, q_ctx->recv_buf_offset);
+    Log(TRACE_MAXIMUM, -1, "quic_get_ch %d @ %d\n", *c, q_ctx->recv_buf_offset);
     q_ctx->recv_buf_offset += 1; // one char
     pthread_mutex_unlock(&q_ctx->mutex);
     maybe_recv_complete(q_ctx);
@@ -235,7 +235,7 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
     char* tmpbuf = malloc(len*sizeof(char));
 
     if (!tmpbuf) {
-        printf("SendBuffer allocation failed!\n");
+        Log(TRACE_MINIMUM, -1, "SendBuffer allocation failed!\n");
         Status = QUIC_STATUS_OUT_OF_MEMORY;
         goto Error;
     }
@@ -251,7 +251,7 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
     Log(LOG_ERROR, -1, "QUIC_send: %d", len);
 
     if (QUIC_FAILED(Status = MsQuic->StreamSend(Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer))) {
-        printf("StreamSend failed, 0x%x!\n", Status);
+        Log(TRACE_MINIMUM, -1, "StreamSend failed, 0x%x!\n", Status);
         goto Error;
     }
 
@@ -266,11 +266,13 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
     FUNC_ENTRY;
     if(net->q_ctx)
     {
+        pthread_mutex_lock(&net->q_ctx->mutex);
         MsQuic->ConnectionShutdown(net->q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
+        net->q_ctx->is_closed = TRUE;
+        pthread_mutex_unlock(&net->q_ctx->mutex);
     }
     net->quic = 0;
     net->q_ctx = NULL; // application will no longer has access to the quic ctx
-    close(net->socket);
     FUNC_EXIT;
 }
 
@@ -300,17 +302,17 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     //@TODO: check return value
     QUIC_addSocket(net->socket);
     if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(Registration, ClientConnectionCallback, net->q_ctx, &net->q_ctx->Connection))) {
-        printf("ConnectionOpen failed, 0x%x!\n", Status);
+        Log(TRACE_MINIMUM, -1, "ConnectionOpen failed, 0x%x!\n", Status);
         goto exit;
     }
     if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection, QUIC_STREAM_OPEN_FLAG_NONE, ClientStreamCallback, net->q_ctx, &net->q_ctx->Stream)))
     {
-        printf("StreamOpen failed, 0x%x!\n", Status);
+        Log(TRACE_MINIMUM, -1, "StreamOpen failed, 0x%x!\n", Status);
         goto exit;
     }
 
     if (QUIC_FAILED(Status = MsQuic->StreamStart(net->q_ctx->Stream, QUIC_STREAM_START_FLAG_NONE))) {
-        printf("StreamStart failed, 0x%x!\n", Status);
+        Log(TRACE_MINIMUM, -1, "StreamStart failed, 0x%x!\n", Status);
         MsQuic->StreamClose(net->q_ctx->Stream);
         goto exit;
     }
@@ -318,7 +320,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     if (QUIC_FAILED(Status = MsQuic->ConnectionStart(net->q_ctx->Connection, Configuration,
                                                      QUIC_ADDRESS_FAMILY_UNSPEC, host, port)))
     {
-        printf("Start Configuration failed, 0x%x!\n", Status);
+        Log(TRACE_MINIMUM, -1, "Start Configuration failed, 0x%x!\n", Status);
         goto exit;
     }
 
@@ -466,7 +468,7 @@ ClientLoadConfiguration(
     //
     QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
     if (QUIC_FAILED(Status = MsQuic->ConfigurationOpen(Registration, &Alpn, 1, &Settings, sizeof(Settings), NULL, &Configuration))) {
-        printf("ConfigurationOpen failed, 0x%x!\n", Status);
+        Log(TRACE_MINIMUM, -1, "ConfigurationOpen failed, 0x%x!\n", Status);
         return FALSE;
     }
 
@@ -475,7 +477,7 @@ ClientLoadConfiguration(
     // on client side, to indicate if a certificate is required or not.
     //
     if (QUIC_FAILED(Status = MsQuic->ConfigurationLoadCredential(Configuration, &CredConfig))) {
-        printf("ConfigurationLoadCredential failed, 0x%x!\n", Status);
+        Log(TRACE_MINIMUM, -1, "ConfigurationLoadCredential failed, 0x%x!\n", Status);
         return FALSE;
     }
 
@@ -498,13 +500,13 @@ ClientConnectionCallback(
     FUNC_ENTRY;
     QUIC_CTX *q_ctx = (QUIC_CTX *)Context;
     pthread_mutex_lock(&q_ctx->mutex);
-    printf("ClientConnectionCallback: event :%d\n", Event->Type);
+    Log(TRACE_MINIMUM, -1, "ClientConnectionCallback: event :%d", Event->Type);
     switch (Event->Type) {
     case QUIC_CONNECTION_EVENT_CONNECTED:
         //
         // The handshake has completed for the connection.
         //
-        printf("[conn][%p] Connected\n", Connection);
+        Log(TRACE_MINIMUM, -1, "[conn][%p] Connected\n", Connection);
         break;
     case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
         //
@@ -513,25 +515,27 @@ ClientConnectionCallback(
         // protocol, since we let idle timeout kill the connection.
         //
         if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE) {
-            printf("[conn][%p] Successfully shut down on idle.\n", Connection);
+            Log(TRACE_MINIMUM, -1, "[conn][%p] Successfully shut down on idle.", Connection);
         } else {
-            printf("[conn][%p] Shut down by transport, 0x%x\n", Connection, Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
+            Log(TRACE_MINIMUM, -1, "[conn][%p] Shut down by transport, 0x%x", Connection, Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
         }
         break;
     case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
         //
         // The connection was explicitly shut down by the peer.
         //
-        printf("[conn][%p] Shut down by peer, 0x%llu\n", Connection, (unsigned long long)Event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
+        Log(TRACE_MINIMUM, -1, "[conn][%p] Shut down by peer, 0x%llu", Connection, (unsigned long long)Event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode);
         break;
     case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
         //
         // The connection has completed the shutdown process and is ready to be
         // safely cleaned up.
         //
-        printf("[conn][%p] All done\n", Connection);
+        Log(TRACE_MINIMUM, -1, "[conn][%p] All done", Connection);
         if (!Event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
             MsQuic->ConnectionClose(Connection);
+        pthread_mutex_destroy(&q_ctx->mutex);
+        free(q_ctx);
         }
         break;
     case QUIC_CONNECTION_EVENT_RESUMPTION_TICKET_RECEIVED:
@@ -539,11 +543,10 @@ ClientConnectionCallback(
         // A resumption ticket (also called New Session Ticket or NST) was
         // received from the server.
         //
-        printf("[conn][%p] Resumption ticket received (%u bytes):\n", Connection, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
+        Log(TRACE_MINIMUM, "[conn][%p] Resumption ticket received (%u bytes):", Connection, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
         for (uint32_t i = 0; i < Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength; i++) {
-            printf("%.2X", (uint8_t)Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket[i]);
+           Log(TRACE_MAXIMUM, -1, "%.2X\n", (uint8_t)Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket[i]);
         }
-        printf("\n");
         break;
     default:
         break;
@@ -577,7 +580,7 @@ ClientStreamCallback(
         // A previous StreamSend call has completed, and the context is being
         // returned back to the app.
         //
-        printf("[strm][%p] Data sent\n", Stream);
+        Log(TRACE_MINIMUM, -1, "[strm][%p] Data sent\n", Stream);
         QUIC_BUFFER* sendbuff = (QUIC_BUFFER *) Event->SEND_COMPLETE.ClientContext;
         free(sendbuff->Buffer);
         free(sendbuff);
@@ -603,7 +606,7 @@ ClientStreamCallback(
         }
         assert(q_ctx->recv_buf_size == len);
         q_ctx->recv_buf_offset = 0;
-        printf("[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
+        Log(TRACE_MINIMUM, -1, "[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
         if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
         {
             Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_RECEIVE, strerror(errno));
@@ -614,20 +617,20 @@ ClientStreamCallback(
         //
         // The peer gracefully shut down its send direction of the stream.
         //
-        printf("[strm][%p] Peer aborted\n", Stream);
+        Log(TRACE_MINIMUM, -1, "[strm][%p] Peer aborted\n", Stream);
         break;
     case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
         //
         // The peer aborted its send direction of the stream.
         //
-        printf("[strm][%p] Peer shut down\n", Stream);
+        Log(TRACE_MINIMUM, -1, "[strm][%p] Peer shut down\n", Stream);
         break;
     case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         //
         // Both directions of the stream have been shut down and MsQuic is done
         // with the stream. It can now be safely cleaned up.
         //
-        printf("[strm][%p] All done\n", Stream);
+        Log(TRACE_MINIMUM, -1, "[strm][%p] All done\n", Stream);
         if (!Event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
             MsQuic->StreamClose(Stream);
         }
@@ -657,7 +660,7 @@ void maybe_recv_complete(QUIC_CTX *q_ctx)
     pthread_mutex_lock(&q_ctx->mutex);
     if(q_ctx->recv_buf_offset == q_ctx->recv_buf_size)
     {
-        printf("receving complete %d\n", q_ctx->recv_buf_size);
+        Log(TRACE_MINIMUM, -1, "receving complete %d", q_ctx->recv_buf_size);
         free(q_ctx->recv_buf);
         q_ctx->recv_buf_offset = 0;
         q_ctx->recv_buf = NULL;

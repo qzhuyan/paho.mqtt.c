@@ -159,19 +159,6 @@ int MQTTAsync_randomJitter(int currentIntervalBase, int minInterval, int maxInte
 static int clientSockCompare(void* a, void* b)
 {
 	MQTTAsyncs* m = (MQTTAsyncs*)a;
-	/*
-#if defined(MSQUIC)
-	if (m->c->net.q_ctx != NULL)
-	{
-		printf("comparing quic %p and %p\n", (int)(SOCKET *)m->c->net.q_ctx->Stream, *(HQUIC *)b);
-		// @TODO: super urgly compare, should compare HQUIC to HQUIC
-		int res = (int)m->c->net.q_ctx->Stream == (int)*(HQUIC *)b;
-		res?printf("compare res: %d\n", res):0;
-		return res;
-	}
-
-#endif
-*/
 	return m->c->net.socket == *(int*)b;
 }
 
@@ -2425,7 +2412,7 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 		} else
 #endif
 #if defined(OPENSSL)
-		if (client->net.ssl == 1)
+		if (client->net.ssl)
 	{
 		SSL_SESSION_free(client->session); /* is a no-op if session is NULL */
 		client->session = NULL; /* show the session has been freed */
@@ -3010,13 +2997,15 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 #endif
 #if defined(MSQUIC)
 	else if (m->quic) /* QUIC connect @TODO check m->c->connect_state*/
-	{
-		m->c->connect_state = WAIT_FOR_CONNACK; /* QUIC connect completed, in which case send the MQTT connect packet */
+	{  // This might never be called since MSQUIC is async
+		Log(TRACE_MINIMUM, -1, "send connect at state %d\n\n\n", m->c->connect_state);
+		/* QUIC connect completed, in which case send the MQTT connect packet */
 		if ((rc = MQTTPacket_send_connect(m->c, m->connect.details.conn.MQTTVersion,
 					m->connectProps, m->willProps)) == SOCKET_ERROR)
 		{
 			goto exit;
 		}
+		m->c->connect_state = WAIT_FOR_CONNACK;
 	}
 #endif
 	else if (m->c->connect_state == WEBSOCKET_IN_PROGRESS) /* Websocket connect sent - wait for completion */
@@ -3049,7 +3038,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 #if defined(MSQUIC)
 	*sock = QUIC_getReadySocket(0, timeout, socket_mutex, rc);
 	if(*sock != 0)
-		printf("QUIC is waiting at sock %d\n", *sock);
+		Log(TRACE_MINIMUM, -1, "QUIC is waiting at sock %d\n", *sock);
 	else
 #endif
 #if defined(OPENSSL)
