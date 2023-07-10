@@ -123,6 +123,8 @@ void QUIC_outTerminate(void)
         }
         MsQuicClose(MsQuic);
     }
+  close(epollfd_read);
+  FUNC_EXIT;
 }
 
 int QUIC_getch(QUIC_CTX* q_ctx, char* c)

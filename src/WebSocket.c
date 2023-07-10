@@ -1310,6 +1310,9 @@ void WebSocket_terminate( void )
 #if defined(OPENSSL)
 	SSLSocket_terminate();
 #endif
+#if defined(MSQUIC)
+	QUIC_outTerminate();
+#endif
 	FUNC_EXIT;
 }
 
