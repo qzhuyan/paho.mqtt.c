@@ -86,7 +86,7 @@ typedef struct QUIC_CTX {
     char* recv_buf;           /* buffer to receive data */
     uint32_t recv_buf_size;   /* size of recv_buf */
     uint32_t recv_buf_offset; /* offset of unconsumed data in recv_buf */
-    int is_closed;            /* Mark if connection is closed */
+    int is_closed;            /* Mark if control stream is closed */
 } QUIC_CTX;
 
 ```
@@ -100,12 +100,12 @@ typedef struct QUIC_CTX {
    Free in stream callback
    
 1. Recv buffer
-   Allocates buffer in stream callback, event: 'RECEIVE.
+   Allocates buffer in stream callback, event: `RECEIVE`.
    Free in receiveComplete callback
     
 1. QUIC CTX
-   Allocate in QUIC_new.
-   Dealloc in connection callback, event:
+   Allocate in `QUIC_new`.
+   Dealloc in  `QUIC_close`.
    
 ## Locks
 
@@ -121,7 +121,8 @@ Threads: PAHO recv threads and MsQuic workthreads
 ```
 mkdir _build
 cd _build
-cmake -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_MSQUIC=TRUE  -DPAHO_WITH_SSL=TRUE -DPAHO_BUILD_SHARED=TRUE -DPAHO_BUILD_SAMPLES=TRUE ../
+cmake -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_MSQUIC=TRUE -DPAHO_WITH_SSL=TRUE \
+-DPAHO_BUILD_SHARED=TRUE -DPAHO_BUILD_SAMPLES=TRUE ../
 cmake --build ./ && src/samples/MQTTAsync_quic_publish
 ```
 

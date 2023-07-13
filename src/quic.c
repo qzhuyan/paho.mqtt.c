@@ -20,11 +20,9 @@ static int QUIC_addSocket(SOCKET newSd);
 /*=================================*/
 /* Global QUIC handles             */
 /*=================================*/
-/* `Registration` Manages the execution context */
-HQUIC Registration;
 /* `Configuration` abstracts the configuration for a connection, */
 /*   security and common QUIC Settings */
-HQUIC Configuration;
+
 
 /**
  * Structure to hold all socket data for this module
@@ -41,7 +39,7 @@ const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
 
 const QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 
-BOOLEAN ClientLoadConfiguration (BOOLEAN Unsecure);
+BOOLEAN ClientLoadConfiguration (QUIC_CTX* q_ctx, BOOLEAN Unsecure);
 
 // @doc: call from MQTTAsync_createWithOptions
 void MSQUIC_initialize()
@@ -61,16 +59,6 @@ void MSQUIC_initialize()
     {
         epollfd_read = epoll_create1(0);
     }
-
-    if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &Registration))) {
-        Log(LOG_FATAL, -1, "RegistrationOpen failed, 0x%x!\n", Status);
-        goto Error;
-    }
-
-    if (!ClientLoadConfiguration(TRUE)) {
-        Log(LOG_ERROR, -1, "!!!!!!!client load conf failed, 0x%x!\n", Status);
-        goto Error;
-    }
     FUNC_EXIT;
     return;
 Error:
@@ -86,8 +74,11 @@ void QUIC_handleInit(int boolean)
     //
     // Open a handle to the library and get the API function table.
     //
-    if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
-        Log(LOG_FATAL, -1, "MsQuicOpen2 failed, 0x%x!", Status);
+    if(NULL == MsQuic)
+    {
+        if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
+            Log(LOG_FATAL, -1, "MsQuicOpen2 failed, 0x%x!", Status);
+        }
     }
 
     FUNC_EXIT;
@@ -100,30 +91,17 @@ void QUIC_handleInit(int boolean)
 void QUIC_outInitialize(void)
 {
     FUNC_ENTRY;
+    MSQUIC_initialize();
     FUNC_EXIT;
 }
 
 /*
- * @doc Terminate the 'quic' module,
+ * @doc Terminate the 'quic' connection.
  * call from `MQTTAsync_terminate`
 */
 void QUIC_outTerminate(void)
 {
   FUNC_ENTRY;
-  if (MsQuic != NULL) {
-        if (Configuration != NULL) {
-            MsQuic->ConfigurationClose(Configuration);
-        }
-        if (Registration != NULL) {
-            //
-            // This will block until all outstanding child objects have been
-            // closed.
-            //
-            MsQuic->RegistrationClose(Registration);
-        }
-        MsQuicClose(MsQuic);
-    }
-  close(epollfd_read);
   FUNC_EXIT;
 }
 
@@ -144,7 +122,6 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     *c = *(q_ctx->recv_buf + q_ctx->recv_buf_offset);
     Log(TRACE_MAXIMUM, -1, "quic_get_ch %d @ %d\n", *c, q_ctx->recv_buf_offset);
     q_ctx->recv_buf_offset += 1; // one char
-    pthread_mutex_unlock(&q_ctx->mutex);
     maybe_recv_complete(q_ctx);
     SocketBuffer_queueChar(q_ctx->Socket, *c);
     if (q_ctx->is_closed)
@@ -157,6 +134,7 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
         rc = 0;
     }
 exit:
+    pthread_mutex_unlock(&q_ctx->mutex);
     FUNC_EXIT_RC(rc);
     return rc;
 }
@@ -254,6 +232,8 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
 
     if (QUIC_FAILED(Status = MsQuic->StreamSend(Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer))) {
         Log(TRACE_MINIMUM, -1, "StreamSend failed, 0x%x!\n", Status);
+        free(SendBuffer->Buffer);
+        free(SendBuffer);
         goto Error;
     }
 
@@ -266,30 +246,68 @@ Error:
 int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
 {
     FUNC_ENTRY;
+    QUIC_CTX *q_ctx = net->q_ctx;
     if(net->q_ctx)
     {
-        pthread_mutex_lock(&net->q_ctx->mutex);
-        MsQuic->ConnectionShutdown(net->q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
-        net->q_ctx->is_closed = TRUE;
-        pthread_mutex_unlock(&net->q_ctx->mutex);
+        Log(TRACE_MINIMUM, -1, "QUIC_closing q_ctx %p\n", q_ctx);
+
+        // application will no longer has access to the ctx
+        // from networkHandles
+        net->q_ctx = NULL;
+        net->quic = 0;
+
+        pthread_mutex_lock(&q_ctx->mutex);
+
+        assert(q_ctx->shutdown_state != SHUTDOWN_STATE_APP);
+
+        if (SHUTDOWN_STATE_NONE == q_ctx->shutdown_state)
+        {
+            HQUIC Registration = q_ctx->Registration;
+            Log(TRACE_MINIMUM, -1, "trigger connection shutdown in QUIC_close: %p\n", q_ctx->Connection);
+            q_ctx->shutdown_state = SHUTDOWN_STATE_APP;
+            MsQuic->ConnectionShutdown(q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
+            pthread_mutex_unlock(&q_ctx->mutex);
+            // long blocking, wait for complete clean
+            MsQuic->RegistrationClose(Registration);
+        }
+        else if(SHUTDOWN_STATE_STACK == q_ctx->shutdown_state)
+        {
+            // Already closed by MsQuic Stack
+            Log(TRACE_MINIMUM, -1, "Free q_ctx in QUIC_close: %p\n", q_ctx);
+            close(q_ctx->Socket);
+            pthread_mutex_unlock(&q_ctx->mutex);
+            pthread_mutex_destroy(&q_ctx->mutex);
+            MsQuic->ConfigurationClose(q_ctx->Configuration);
+            MsQuic->RegistrationClose(q_ctx->Registration);
+            printf("registration closed\n");
+            free(q_ctx);
+        }
+
     }
-    net->quic = 0;
-    net->q_ctx = NULL; // application will no longer has access to the quic ctx
+
     FUNC_EXIT;
 }
 
-/* able to use GNU's getaddrinfo_a to make timeouts possible */
+/**
+ *   Create and start new QUIC connection
+ *   @return completion code 0=good, SOCKET_ERROR=fail
+ */
 int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, long timeout)
 {
     FUNC_ENTRY;
     QUIC_STATUS Status;
     char host[QUIC_MAX_SNI_LENGTH] = { 0 };
 
+
     // @TODO check return val
     strncpy(host, addr, addr_len);
     Log(LOG_ERROR, -1, "QUIC_new: host: %s, port: %d", host, port);
-    //assert(net->quic);
-    assert(net->q_ctx == NULL);
+
+    if (net->q_ctx)
+    {
+        Log(TRACE_MINIMUM, -1 , "QUIC_new: closing old %p\n", net->q_ctx, net->q_ctx->Socket);
+        QUIC_close(net, 9);// @TODO reason code
+    }
     net->quic = 1;
     net->ssl = 0; //@TODO set at other places?
     net->q_ctx = (QUIC_CTX *) malloc(sizeof(QUIC_CTX));
@@ -297,19 +315,33 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     net->q_ctx->recv_buf_size = 0;
     net->q_ctx->recv_buf_offset = 0;
     net->q_ctx->is_closed = FALSE;
+    net->q_ctx->shutdown_state = SHUTDOWN_STATE_NONE;
     net->socket = eventfd(0, EFD_NONBLOCK);
     net->q_ctx->Socket = net->socket;
     pthread_mutex_init(&net->q_ctx->mutex, 0);
 
+    if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &net->q_ctx->Registration))) {
+        Log(LOG_FATAL, -1, "RegistrationOpen failed, 0x%x!\n", Status);
+        goto exit;
+    }
+
     //@TODO: check return value
     QUIC_addSocket(net->socket);
-    if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(Registration, ClientConnectionCallback, net->q_ctx, &net->q_ctx->Connection))) {
+    if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(net->q_ctx->Registration, ClientConnectionCallback, net->q_ctx, &net->q_ctx->Connection))) {
         Log(TRACE_MINIMUM, -1, "ConnectionOpen failed, 0x%x!\n", Status);
         goto exit;
     }
+    Log(TRACE_MINIMUM, -1, "QUIC_new: conn: %p", net->q_ctx->Connection);
     if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection, QUIC_STREAM_OPEN_FLAG_NONE, ClientStreamCallback, net->q_ctx, &net->q_ctx->Stream)))
     {
         Log(TRACE_MINIMUM, -1, "StreamOpen failed, 0x%x!\n", Status);
+        goto exit;
+    }
+
+    // Load configuration, @TODO: Load SSL configuration
+    if (!ClientLoadConfiguration(net->q_ctx, TRUE)) {
+        Log(LOG_ERROR, -1, "!!!!!!!client load conf failed\n");
+        Status = SOCKET_ERROR; // @FIXME we may not use Status
         goto exit;
     }
 
@@ -319,7 +351,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
         goto exit;
     }
 
-    if (QUIC_FAILED(Status = MsQuic->ConnectionStart(net->q_ctx->Connection, Configuration,
+    if (QUIC_FAILED(Status = MsQuic->ConnectionStart(net->q_ctx->Connection, net->q_ctx->Configuration,
                                                      QUIC_ADDRESS_FAMILY_UNSPEC, host, port)))
     {
         Log(TRACE_MINIMUM, -1, "Start Configuration failed, 0x%x!\n", Status);
@@ -439,6 +471,7 @@ SOCKET QUIC_getReadySocket(int more_work, int timeout_ms, mutex_type mutex, int*
 */
 BOOLEAN
 ClientLoadConfiguration(
+    QUIC_CTX* q_ctx,
     BOOLEAN Unsecure
     )
 {
@@ -469,7 +502,7 @@ ClientLoadConfiguration(
     // and settings.
     //
     QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
-    if (QUIC_FAILED(Status = MsQuic->ConfigurationOpen(Registration, &Alpn, 1, &Settings, sizeof(Settings), NULL, &Configuration))) {
+    if (QUIC_FAILED(Status = MsQuic->ConfigurationOpen(q_ctx->Registration, &Alpn, 1, &Settings, sizeof(Settings), NULL, &q_ctx->Configuration))) {
         Log(TRACE_MINIMUM, -1, "ConfigurationOpen failed, 0x%x!\n", Status);
         return FALSE;
     }
@@ -478,7 +511,7 @@ ClientLoadConfiguration(
     // Loads the TLS credential part of the configuration. This is required even
     // on client side, to indicate if a certificate is required or not.
     //
-    if (QUIC_FAILED(Status = MsQuic->ConfigurationLoadCredential(Configuration, &CredConfig))) {
+    if (QUIC_FAILED(Status = MsQuic->ConfigurationLoadCredential(q_ctx->Configuration, &CredConfig))) {
         Log(TRACE_MINIMUM, -1, "ConfigurationLoadCredential failed, 0x%x!\n", Status);
         return FALSE;
     }
@@ -536,9 +569,25 @@ ClientConnectionCallback(
         Log(TRACE_MINIMUM, -1, "[conn][%p] All done", Connection);
         if (!Event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
             MsQuic->ConnectionClose(Connection);
-        pthread_mutex_destroy(&q_ctx->mutex);
-        free(q_ctx);
         }
+        q_ctx->Connection = NULL;
+        if (SHUTDOWN_STATE_APP == q_ctx->shutdown_state)
+        {
+            // Already shutdown by application
+            // safe to unlock
+            Log(TRACE_MINIMUM, -1, "[conn][%p] Connection already closed by app: %p", Connection, q_ctx);
+            pthread_mutex_unlock(&q_ctx->mutex);
+            close(q_ctx->Socket);
+            MsQuic->ConfigurationClose(q_ctx->Configuration);
+            // @NOTE never call RegistrationClose from here
+            pthread_mutex_destroy(&q_ctx->mutex);
+            free(q_ctx);
+            goto exit;
+        } else {
+            q_ctx->shutdown_state = SHUTDOWN_STATE_STACK;
+            pthread_mutex_unlock(&q_ctx->mutex);
+        }
+
         break;
     case QUIC_CONNECTION_EVENT_RESUMPTION_TICKET_RECEIVED:
         //
@@ -554,6 +603,8 @@ ClientConnectionCallback(
         break;
     }
     pthread_mutex_unlock(&q_ctx->mutex);
+exit:
+    FUNC_EXIT;
     return QUIC_STATUS_SUCCESS;
 }
 
@@ -646,6 +697,7 @@ ClientStreamCallback(
         break;
     }
     pthread_mutex_unlock(&q_ctx->mutex);
+    FUNC_EXIT_RC(ret);
     return ret;
 }
 
@@ -656,10 +708,6 @@ void maybe_recv_complete(QUIC_CTX *q_ctx)
     {
         return;
     }
-    // @TODO this lock may not be necessary since
-    // stream callback with receive event shall not be triggered
-    // due to partial receive
-    pthread_mutex_lock(&q_ctx->mutex);
     if(q_ctx->recv_buf_offset == q_ctx->recv_buf_size)
     {
         Log(TRACE_MINIMUM, -1, "receving complete %d", q_ctx->recv_buf_size);
@@ -669,7 +717,6 @@ void maybe_recv_complete(QUIC_CTX *q_ctx)
         q_ctx->recv_buf_size = 0;
     }
     MsQuic->StreamReceiveComplete(q_ctx->Stream, q_ctx->recv_buf_size);
-    pthread_mutex_unlock(&q_ctx->mutex);
 }
 
 /**
