@@ -17,7 +17,7 @@
 
 /**
  * @file
- * SSL tests for the Eclipse Paho Asynchronous MQTT C client
+ * SSL/QUIC tests for the Eclipse Paho Asynchronous MQTT C client
  */
 
 #include "MQTTAsync.h"
@@ -69,6 +69,7 @@ struct Options
 	int test_no;
 	int size;
 	int websockets;
+	int quic;
 	int message_count;
 	int start_port;
 } options =
@@ -87,6 +88,7 @@ struct Options
 	0,
 	0,
 	5000000,
+	0,
 	0,
 	3,
 	18883,
@@ -160,7 +162,14 @@ void getopts(int argc, char** argv)
 		{
 			if (++count < argc)
 			{
-				char* prefix = (options.websockets) ? "wss" : "ssl";
+				char* prefix = "";
+
+				if (options.websockets)
+					prefix = "wss";
+				else if (options.quic)
+					prefix = "quic";
+				else
+					prefix = "ssl";
 
 				sprintf(options.connection, "%s://%s:%d", prefix, argv[count],
 						options.start_port);
@@ -190,6 +199,12 @@ void getopts(int argc, char** argv)
 			options.websockets = 1;
 			printf("\nSetting websockets on\n");
 		}
+		else if (strcmp(argv[count], "--quic") == 0)
+		{
+			options.quic = 1;
+			printf("\nSetting QUIC on\n");
+		}
+
 		else if (strcmp(argv[count], "--size") == 0)
 		{
 			if (++count < argc)
@@ -781,6 +796,8 @@ int test2a(struct Options options)
 
 	failures = 0;
 	MyLog(LOGA_INFO, "Starting test 2a - Mutual SSL authentication");
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
 	global_start_time = start_clock();
 
@@ -892,6 +909,7 @@ int test2b(struct Options options)
 	MQTTAsync_connectOptions opts = MQTTAsync_connectOptions_initializer;
 	MQTTAsync_willOptions wopts = MQTTAsync_willOptions_initializer;
 	MQTTAsync_SSLOptions sslopts = MQTTAsync_SSLOptions_initializer;
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 	int rc = 0;
 	int count = 0;
 
@@ -1105,7 +1123,7 @@ int test2d(struct Options options)
 	for (iteration = 0; !failures && (iteration < 20) ; iteration++)
 	{
 		count = 0;
-		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
+		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 
 		rc = MQTTAsync_create(&c, options.mutual_auth_connection,
 				      "test2d", MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
@@ -2703,7 +2721,6 @@ int main(int argc, char** argv)
 
 	xml = fopen("TEST-test5.xml", "w");
 	fprintf(xml, "<testsuite name=\"test5\" tests=\"%d\">\n", (int)ARRAY_SIZE(tests) - 1);
-
 	MQTTAsync_setTraceCallback(handleTrace);
 	getopts(argc, argv);
 
@@ -2712,7 +2729,8 @@ int main(int argc, char** argv)
 		for (options.test_no = 1; options.test_no < ARRAY_SIZE(tests); ++options.test_no)
 		{
 			failures = 0;
-			MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
+			MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+
 			rc += tests[options.test_no](options); /* return number of failures.  0 = test succeeded */
 		}
 	}
