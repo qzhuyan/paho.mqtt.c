@@ -626,7 +626,8 @@ int WebSocket_getch(networkHandles *net, char* c)
 	{
 		rc = QUIC_getch(net->q_ctx, c);
 	}
-#elif defined(OPENSSL)
+#endif
+#if defined(OPENSSL)
 	else if ( net->ssl )
 		rc = SSLSocket_getch(net->ssl, net->socket, c);
 #endif
