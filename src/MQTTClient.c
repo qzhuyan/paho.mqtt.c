@@ -1244,7 +1244,8 @@ static MQTTResponse MQTTClient_connectURIVersion(MQTTClient handle, MQTTClient_c
 	}
 
 	Log(TRACE_MIN, -1, "Connecting to serverURI %s with MQTT version %d", serverURI, MQTTVersion);
-#if defined(MSQUIC)
+#if defined(MSQUIC)								\
+	    // call MQTTProtocol_connect, quic variant
 		rc = MQTTProtocol_connect(serverURI, m->c, m->quic, m->ssl, m->websocket, MQTTVersion, connectProperties, willProperties,
 			millisecsTimeout - MQTTTime_elapsed(start));
 #else
@@ -1431,7 +1432,8 @@ static MQTTResponse MQTTClient_connectURIVersion(MQTTClient handle, MQTTClient_c
 	{
 		MQTTPacket* pack = NULL;
 		Thread_unlock_mutex(mqttclient_mutex);
-		pack = MQTTClient_waitfor(handle, CONNACK, &rc, millisecsTimeout - MQTTTime_elapsed(start));
+		int64_t timeout = millisecsTimeout - MQTTTime_elapsed(start);
+		pack = MQTTClient_waitfor(handle, CONNACK, &rc, timeout);
 		Thread_lock_mutex(mqttclient_mutex);
 		if (pack == NULL)
 			rc = SOCKET_ERROR;

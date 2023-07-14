@@ -29,7 +29,7 @@
 #include <OsWrapper.h>
 #endif
 
-#define ADDRESS     "quic://mqtt.eclipseprojects.io:1883"
+#define ADDRESS     "tcp://mqtt.eclipseprojects.io:1883"
 #define CLIENTID    "ExampleClientPub"
 #define TOPIC       "MQTT Examples"
 #define PAYLOAD     "Hello World!"

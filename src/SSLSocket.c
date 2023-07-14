@@ -899,6 +899,7 @@ char *SSLSocket_getdata(SSL* ssl, SOCKET socket, size_t bytes, size_t* actual_le
 			if (*rc != SSL_ERROR_WANT_READ && *rc != SSL_ERROR_WANT_WRITE)
 			{
 				buf = NULL;
+				Log(TRACE_MIN, -1, "SSL_read parsed error =>%d<=", *rc);
 				goto exit;
 			}
 		}
@@ -927,7 +928,7 @@ char *SSLSocket_getdata(SSL* ssl, SOCKET socket, size_t bytes, size_t* actual_le
 		Log(TRACE_MAX, -1, "SSL_read: %lu bytes expected but %lu bytes now received", bytes, *actual_len);
 	}
 exit:
-	FUNC_EXIT;
+	FUNC_EXIT_RC(*rc);
 	return buf;
 }
 

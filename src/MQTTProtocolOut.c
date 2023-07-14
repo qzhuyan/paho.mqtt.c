@@ -201,7 +201,7 @@ exit:
  * @param long timeout how long to wait for a new socket to be created
  * @return return code
  */
-#if defined(MSQUIC)
+#if defined(MSQUIC)  // quic variant
 int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int quic, int ssl, int websocket, int MQTTVersion,
 		MQTTProperties* connectProperties, MQTTProperties* willProperties, long timeout)
 #else
@@ -298,7 +298,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 	}
 #endif
 	else {
-#if defined(OPENSSL) || defined(MSQUIC)
+#if defined(OPENSSL) //|| defined(MSQUIC)
 		addr_len = MQTTProtocol_addressPort(ip_address, &port, NULL, ssl ?
 				(websocket ? WSS_DEFAULT_PORT : SECURE_MQTT_DEFAULT_PORT) :
 				(websocket ? WS_DEFAULT_PORT : MQTT_DEFAULT_PORT) );

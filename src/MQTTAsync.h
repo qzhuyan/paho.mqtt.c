@@ -1381,7 +1381,7 @@ typedef struct
 	 */
 	const char* httpsProxy;
 
-	const void* quic; // @TODO
+	//const void* quic; // @TODO
 } MQTTAsync_connectOptions;
 
 /** Initializer for connect options for MQTT 3.1.1 non-WebSocket connections */
