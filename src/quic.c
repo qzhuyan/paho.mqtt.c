@@ -39,7 +39,7 @@ const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
 
 const QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 
-BOOLEAN ClientLoadConfiguration (QUIC_CTX* q_ctx, BOOLEAN Unsecure);
+BOOLEAN ClientLoadConfiguration (QUIC_CTX* q_ctx, MQTTClient_SSLOptions *sslopts);
 
 // @doc: call from MQTTAsync_createWithOptions
 void MSQUIC_initialize()
@@ -292,7 +292,7 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
  *   Create and start new QUIC connection
  *   @return completion code 0=good, SOCKET_ERROR=fail
  */
-int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, long timeout)
+int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, MQTTClient_SSLOptions *sslopts, long timeout)
 {
     FUNC_ENTRY;
     QUIC_STATUS Status;
@@ -339,7 +339,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, l
     }
 
     // Load configuration, @TODO: Load SSL configuration
-    if (!ClientLoadConfiguration(net->q_ctx, TRUE)) {
+    if (!ClientLoadConfiguration(net->q_ctx, sslopts)) {
         Log(LOG_ERROR, -1, "!!!!!!!client load conf failed\n");
         Status = SOCKET_ERROR; // @FIXME we may not use Status
         goto exit;
@@ -472,7 +472,7 @@ SOCKET QUIC_getReadySocket(int more_work, int timeout_ms, mutex_type mutex, int*
 BOOLEAN
 ClientLoadConfiguration(
     QUIC_CTX* q_ctx,
-    BOOLEAN Unsecure
+    MQTTClient_SSLOptions *sslopts
     )
 {
     FUNC_ENTRY;
@@ -491,11 +491,15 @@ ClientLoadConfiguration(
     //
     QUIC_CREDENTIAL_CONFIG CredConfig;
     memset(&CredConfig, 0, sizeof(CredConfig));
-    CredConfig.Type = QUIC_CREDENTIAL_TYPE_NONE;
+    CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
     CredConfig.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
-    if (Unsecure) {
+    if (!sslopts->enableServerCertAuth) {
         CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
     }
+
+    CredConfig.CertificateFile->CertificateFile = sslopts->trustStore;
+    CredConfig.CertificateFile->PrivateKeyFile = sslopts->privateKey;
+    CredConfig.CaCertificateFile = sslopts->CApath;
 
     //
     // Allocate/initialize the configuration object, with the configured ALPN

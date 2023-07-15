@@ -24,7 +24,7 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc);
 int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers bufs);
 int QUIC_close(networkHandles *net, QUIC_UINT62 reason);
 
-int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, long timeout);
+int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, MQTTClient_SSLOptions *sslopts, long timeout);
 
 
 int QUIC_noPendingWrites(QSOCKET socket);

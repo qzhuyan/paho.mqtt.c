@@ -313,7 +313,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 		else if(quic)
 		{
 			Log(TRACE_PROTOCOL, -1, "go quic! ");
-			rc = QUIC_new(ip_address, addr_len, port, &aClient->net, 100);
+			rc = QUIC_new(ip_address, addr_len, port, &aClient->net, aClient->sslopts, 100);
 		}
 #endif //MSQUIC
 		else
