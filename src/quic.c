@@ -619,15 +619,29 @@ ClientLoadConfiguration(
     //
     QUIC_CREDENTIAL_CONFIG CredConfig;
     memset(&CredConfig, 0, sizeof(CredConfig));
+
+    // @TODO: Support other types of credentials
     CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
     CredConfig.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
-    if (!sslopts->enableServerCertAuth) {
+
+    // @TODO flip
+    //if (sslopts->enableServerCertAuth) {
+    if (1) {
         CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
     }
 
-    CredConfig.CertificateFile->CertificateFile = sslopts->trustStore;
-    CredConfig.CertificateFile->PrivateKeyFile = sslopts->privateKey;
-    CredConfig.CaCertificateFile = sslopts->CApath;
+    CredConfig.CertificateFile
+        = (QUIC_CERTIFICATE_FILE *)malloc(sizeof(QUIC_CERTIFICATE_FILE));
+
+
+    Log(TRACE_MINIMUM, -1, "Loading certificate file: %s, CaCert: %s, \n",
+        sslopts->keyStore, sslopts->trustStore);
+    // Cert
+    CredConfig.CertificateFile->CertificateFile = sslopts->keyStore;
+    // Key is placed in the certfile too?
+    CredConfig.CertificateFile->PrivateKeyFile = sslopts->keyStore;
+    // CACert
+    CredConfig.CaCertificateFile = sslopts->trustStore;
 
     //
     // Allocate/initialize the configuration object, with the configured ALPN
