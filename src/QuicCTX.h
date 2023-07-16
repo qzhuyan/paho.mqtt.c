@@ -18,6 +18,7 @@ typedef struct QUIC_CTX {
 	HQUIC Connection;         /* MSQUIC Connection Handle */
 	HQUIC Stream;             /* MSQUIC Stream Handle */
     SOCKET Socket;            /* eventfd, index of 'socket' to 'networkhandle' */
+    QUIC_TLS_SECRETS tls_secrets; /* TLS secrets */
     char* recv_buf;           /* buffer to receive data */
     uint32_t recv_buf_size;   /* size of recv_buf */
     uint32_t recv_buf_offset; /* offset of unconsumed data in recv_buf */
