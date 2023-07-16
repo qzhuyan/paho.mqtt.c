@@ -1320,79 +1320,79 @@ IF (PAHO_WITH_MSQUIC)
 
 		ADD_TEST(
 			NAME test9000-1-ssl-connection-to-no-SSL-server
-			COMMAND test9000 "--test_no" "1" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "1" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-2a-mutual-ssl-auth-certificates-in-place
-			COMMAND test9000 "--test_no" "2" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "2" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-2b-mutual-ssl-auth-broker-missing-client-cert
-			COMMAND test9000 "--test_no" "3" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "3" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-2c-mutual-ssl-auth-client-missing-broker-cert
-			COMMAND test9000 "--test_no" "4" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "4" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-2d-mutual-ssl-auth-client-missing-client-cert
-			COMMAND test9000 "--test_no" "5" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "5" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-2d-ws-mutual-ssl-auth-client-missing-client-cert
-			COMMAND test9000 "--test_no" "5" "--ws" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "5" "--ws" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-3a-server-auth-server-cert-in-client-store
-			COMMAND test9000 "--test_no" "6" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "6" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-3b-server-auth-client-missing-broker-cert
-			COMMAND test9000 "--test_no" "7" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "7" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-4-accept-invalid-certificates
-			COMMAND test9000 "--test_no" "8" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "8" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-6-multiple-connections
-			COMMAND test9000 "--test_no" "9" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "9" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
 			NAME test9000-7-big-messages
-			COMMAND test9000 "--test_no" "10" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
+			COMMAND test9000 "--test_no" "10" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
 
 		ADD_TEST(
             NAME test9000-2e-ssl-with-ha
-            COMMAND test9000 "--test_no" "14" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "${CERTDIR}/client.pem" "--server_key" "${CERTDIR}/test-root-ca.crt"
+            COMMAND test9000 "--test_no" "14" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "${CERTDIR}/client.pem" "--server_key" "${CERTDIR}/test-root-ca.crt"
         )
 
 		#ADD_TEST(
 		#	NAME test9000-8-psk-ssl-auth
-		#	COMMAND test9000 "--test_no" "11" "--hostname" ${MQTT_QUIC_HOSTNAME}
+		#	COMMAND test9000 "--test_no" "11" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME}
 		#)
 
 		IF (NOT WIN32)
 			# OpenSSL CApath tests rely on Unix-type filesystem - can it work on Windows?
 			ADD_TEST(
 				NAME test9000-5-server-verify-with-capath
-				COMMAND test9000 "--test_no" "12" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--capath"	"${CERTDIR}/capath"
+				COMMAND test9000 "--test_no" "12" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--capath"	"${CERTDIR}/capath"
 			)
 
 			ADD_TEST(
 				NAME test9000-6-server-verify-with-capath
-				COMMAND test9000 "--test_no" "13" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--capath"	"${CERTDIR}/notexist"
+				COMMAND test9000 "--test_no" "13" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--capath"	"${CERTDIR}/notexist"
 			)
 
 			SET_TESTS_PROPERTIES(
