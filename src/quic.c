@@ -8,7 +8,6 @@
 #include <sys/eventfd.h>
 #include <sys/epoll.h>
 
-
 #ifndef UNREFERENCED_PARAMETER
 #define UNREFERENCED_PARAMETER(P) (void)(P)
 #endif

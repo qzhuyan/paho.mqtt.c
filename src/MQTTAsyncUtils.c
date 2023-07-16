@@ -3026,6 +3026,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	int rc1 = 0;
 
 	FUNC_ENTRY;
+// @TODO: merge QUIC_getReadySocket and Socket_getReadySocket into one
 #if defined(MSQUIC)
 	*sock = QUIC_getReadySocket(0, 0, socket_mutex, rc);
 	if(*sock != 0)
@@ -3039,7 +3040,8 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 		int should_stop = 0;
 
 		/* 0 from getReadySocket indicates no work to do, rc -1 == error */
-		*sock = Socket_getReadySocket(0, (int)timeout, socket_mutex, &rc1);
+		// @FIXME timeout
+		*sock = Socket_getReadySocket(0, 1, socket_mutex, &rc1);
 		*rc = rc1;
 		MQTTAsync_lock_mutex(mqttasync_mutex);
 		should_stop = MQTTAsync_tostop;

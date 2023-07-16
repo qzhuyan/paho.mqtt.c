@@ -350,6 +350,11 @@ char output[3000];
 char* cur_output = output;
 
 
+void handleTrace(enum MQTTASYNC_TRACE_LEVELS level, char* message)
+{
+	printf("%s\n", message);
+}
+
 void write_test_result(void)
 {
 	long duration = elapsed(global_start_time);
@@ -797,6 +802,7 @@ int test2a(struct Options options)
 	failures = 0;
 	MyLog(LOGA_INFO, "Starting test 2a - Mutual SSL authentication");
 	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	MQTTAsync_setTraceCallback(handleTrace);
 
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
 	global_start_time = start_clock();
@@ -2703,13 +2709,6 @@ int test10(struct Options options)
 	write_test_result();
 	return failures;
 }
-
-
-void handleTrace(enum MQTTASYNC_TRACE_LEVELS level, char* message)
-{
-	printf("%s\n", message);
-}
-
 
 int main(int argc, char** argv)
 {
