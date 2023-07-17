@@ -27,6 +27,13 @@ jobs:
       - name: Start test proxy
         run: |
           python3 test/mqttsas.py &
+      - name: Start EMQX
+        run: |
+          curl -L -o emqx.tar.gz https://github.com/emqx/emqx/releases/download/v5.1.1/emqx-5.1.1-ubuntu22.04-amd64.tar.gz
+          mkdir -p emqx
+          tar zxvf emqx.tar.gz -C emqx
+          cat test/emqx.conf >> emqx/etc/emqx.conf
+          emqx/bin/emqx start
       - name: run tests
         run: |
           cd build.paho
