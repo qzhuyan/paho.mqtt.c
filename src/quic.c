@@ -164,15 +164,26 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
 
     desired_bytes = bytes - queued_bytes;
 
-    if(desired_bytes <= left_in_recvbuf)
+    if (desired_bytes == left_in_recvbuf)
     {
-        // read all bytes
+        // consume all buffers
         *actual_len = desired_bytes;
         *rc = *actual_len;
     }
+    else if (desired_bytes < left_in_recvbuf)
+    {
+        // consume partial buffers
+        *actual_len = desired_bytes;
+        *rc = *actual_len;
+        // Trigger another read for left data
+        if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
+        {
+            Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_RECEIVE, strerror(errno));
+        }
+    }
     else
     {
-        // read less bytes
+        // @FIXME recompute
         *actual_len = left_in_recvbuf;
     }
 
@@ -858,11 +869,12 @@ void maybe_recv_complete(QUIC_CTX *q_ctx)
     {
         Log(TRACE_MINIMUM, -1, "receving complete %d for %p",
             q_ctx->recv_buf_size, q_ctx->Stream);
+        uint32_t completed = q_ctx->recv_buf_size;
         free(q_ctx->recv_buf);
         q_ctx->recv_buf_offset = 0;
         q_ctx->recv_buf = NULL;
         q_ctx->recv_buf_size = 0;
-        MsQuic->StreamReceiveComplete(q_ctx->Stream, q_ctx->recv_buf_size);
+        MsQuic->StreamReceiveComplete(q_ctx->Stream, completed);
     }
 }
 
