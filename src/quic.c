@@ -450,7 +450,6 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     QUIC_STATUS Status;
     char host[QUIC_MAX_SNI_LENGTH] = { 0 };
 
-
     // @TODO check return val
     strncpy(host, addr, addr_len);
     Log(LOG_ERROR, -1, "QUIC_new: host: %s, port: %d", host, port);
@@ -495,11 +494,6 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         Log(TRACE_MINIMUM, -1, "set QUIC_PARAM_CONN_TLS_SECRETS success");
     }
 
-    if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection, QUIC_STREAM_OPEN_FLAG_NONE, ClientStreamCallback, net->q_ctx, &net->q_ctx->Stream)))
-    {
-        Log(TRACE_MINIMUM, -1, "StreamOpen failed, 0x%x!\n", Status);
-        goto exit;
-    }
 
     // Load configuration, @TODO: Load SSL configuration
     if (!ClientLoadConfiguration(net->q_ctx, sslopts)) {
@@ -508,11 +502,19 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         goto exit;
     }
 
+
+    if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection, QUIC_STREAM_OPEN_FLAG_NONE, ClientStreamCallback, net->q_ctx, &net->q_ctx->Stream)))
+    {
+        Log(TRACE_MINIMUM, -1, "StreamOpen failed, 0x%x!\n", Status);
+        goto exit;
+    }
+
     if (QUIC_FAILED(Status = MsQuic->StreamStart(net->q_ctx->Stream, QUIC_STREAM_START_FLAG_NONE))) {
         Log(TRACE_MINIMUM, -1, "StreamStart failed, 0x%x!\n", Status);
         MsQuic->StreamClose(net->q_ctx->Stream);
         goto exit;
     }
+
 
     if (QUIC_FAILED(Status = MsQuic->ConnectionStart(net->q_ctx->Connection, net->q_ctx->Configuration,
                                                      QUIC_ADDRESS_FAMILY_UNSPEC, host, port)))
