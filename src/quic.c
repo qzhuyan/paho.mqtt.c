@@ -680,8 +680,11 @@ ClientLoadConfiguration(
         CredConfig.CertificateFile->PrivateKeyFile = sslopts->privateKey;
     }
 
-    // @FIXME this is temporary workaround
-    if (!sslopts->enableServerCertAuth || !sslopts->keyStore) {
+    // @NOTE, Prefer to disable validation when client cert is not provided
+    //if (!sslopts->enableServerCertAuth || !sslopts->keyStore)
+    // but have to follow paho current behaviour
+    if (!sslopts->enableServerCertAuth)
+    {
         CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
     }
     else {
