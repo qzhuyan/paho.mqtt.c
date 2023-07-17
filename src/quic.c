@@ -109,7 +109,10 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     FUNC_ENTRY;
     int rc = SOCKET_ERROR;
     if ((rc = SocketBuffer_getQueuedChar(q_ctx->Socket, c)) != SOCKETBUFFER_INTERRUPTED)
+    {
+        Log(TRACE_MINIMUM, -1, "quic_get_ch %d @ Queue\n", *c);
 		goto exit;
+    }
 
     pthread_mutex_lock(&q_ctx->mutex);
     if (!q_ctx->recv_buf || q_ctx->recv_buf_size == 0)
@@ -117,9 +120,8 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
         rc = SOCKET_ERROR;
         goto exit;
     }
-    // @TODO check read overflow
     *c = *(q_ctx->recv_buf + q_ctx->recv_buf_offset);
-    Log(TRACE_MAXIMUM, -1, "quic_get_ch %d @ %d\n", *c, q_ctx->recv_buf_offset);
+    Log(TRACE_MINIMUM, -1, "quic_get_ch %d @ %d\n", *c, q_ctx->recv_buf_offset);
     q_ctx->recv_buf_offset += 1; // one char
     maybe_recv_complete(q_ctx);
     SocketBuffer_queueChar(q_ctx->Socket, *c);
@@ -159,7 +161,7 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
         goto exit;
     }
 
-    // get from queued data, @FIXME should get a queued data
+    // Get (consumed len) from queued data
     buf = SocketBuffer_getQueuedData(q_ctx->Socket, bytes, &queued_bytes);
     *actual_len = queued_bytes;
 
@@ -168,21 +170,17 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
         Log(TRACE_MINIMUM, -1, "we have buffered %ld", *actual_len);
     }
 
-    // Precompute how many bytes we want to read
+    // Precompute how many bytes we want to consume from recv_buf
     desired_bytes = bytes - *actual_len;
 
     if (desired_bytes == left_in_recvbuf)
     {
         // consume all buffers, no update on desired_bytes
         Log(TRACE_MINIMUM, -1, "we have %ld", left_in_recvbuf);
-        *rc = desired_bytes;
-        *actual_len += desired_bytes;
     }
     else if (desired_bytes < left_in_recvbuf)
     {
         // consume partial buffers, no update on desired_bytes
-        *rc = desired_bytes;
-        *actual_len += desired_bytes;
         Log(TRACE_MINIMUM, -1, "we have left %ld, consumed %ld", left_in_recvbuf-desired_bytes, desired_bytes);
         // Trigger another read for left data
         if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
@@ -194,26 +192,33 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
     {
         // interrupted recv, need more data than we have in recv_buf
         Log(TRACE_MINIMUM, -1, "we have %ld but need %ld", left_in_recvbuf, desired_bytes);
-        *rc = left_in_recvbuf;
-        *actual_len += left_in_recvbuf;
-        // tracking bytes consumed
-        SocketBuffer_interrupted(q_ctx->Socket, *actual_len);
+        desired_bytes = left_in_recvbuf;
     }
 
-    if (*actual_len == bytes)
+    // @TODO check return val
+    // read start point,
+    memcpy(buf+queued_bytes,
+           q_ctx->recv_buf + q_ctx->recv_buf_offset,
+           desired_bytes);
+
+    *actual_len += desired_bytes;
+    if (*actual_len == bytes) // is it a dummy call if SocketBuffer is empty?
     {
         Log(TRACE_MINIMUM, -1, "SocketBuffer sock: %d complete with %ld",
             q_ctx->Socket, *actual_len);
         SocketBuffer_complete(q_ctx->Socket);
     }
-
-    // read start point
-    memcpy(buf+queued_bytes,
-           q_ctx->recv_buf + q_ctx->recv_buf_offset,
-           *rc);
+    else
+    {
+        // tracking bytes consumed
+        SocketBuffer_interrupted(q_ctx->Socket, *actual_len);
+    }
 
     // update offset for consumed
-    q_ctx->recv_buf_offset += *rc;
+    q_ctx->recv_buf_offset += desired_bytes;
+
+    // Last set rc val
+    *rc = desired_bytes;
 
     pthread_mutex_lock(&q_ctx->mutex);
     maybe_recv_complete(q_ctx);
