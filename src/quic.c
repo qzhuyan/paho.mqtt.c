@@ -654,14 +654,8 @@ ClientLoadConfiguration(
     //
     QUIC_CREDENTIAL_CONFIG CredConfig;
     memset(&CredConfig, 0, sizeof(CredConfig));
-
-
-    // @FIXME this is temporary workaround
-    if (sslopts->enableServerCertAuth || !sslopts->keyStore) {
-        CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
-    }
-
     CredConfig.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
+
 
     // @TODO move to QUIC_new
     //
@@ -677,25 +671,37 @@ ClientLoadConfiguration(
         // Cert
         CredConfig.CertificateFile->CertificateFile = sslopts->keyStore;
 
-        if (NULL == sslopts->privateKey)
+        if (!sslopts->privateKey)
         {
             sslopts->privateKey = sslopts->keyStore;
         }
-        CredConfig.CertificateFile->PrivateKeyFile = sslopts->keyStore;
+        CredConfig.CertificateFile->PrivateKeyFile = sslopts->privateKey;
+    }
+
+    // @FIXME this is temporary workaround
+    if (!sslopts->enableServerCertAuth || !sslopts->keyStore) {
+        CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
     }
     else {
-        CredConfig.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
+        //CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_USE_TLS_BUILTIN_CERTIFICATE_VALIDATION;
+        CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_INDICATE_CERTIFICATE_RECEIVED;
+        //CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_DEFER_CERTIFICATE_VALIDATION;
     }
 
     char sbuf[PATH_MAX];
     // CACert
-    if (sslopts->CApath != NULL)
+    if (sslopts->CApath && sslopts->trustStore)
     {
+        CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_SET_CA_CERTIFICATE_FILE;
         sprintf(sbuf, "%s/%s", sslopts->CApath, sslopts->trustStore);
+        // @TODO async cert load
         CredConfig.CaCertificateFile = sbuf;
     }
     else if (sslopts->trustStore)
     {
+        CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_SET_CA_CERTIFICATE_FILE;
+
+        CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_USE_PORTABLE_CERTIFICATES;
         CredConfig.CaCertificateFile = sslopts->trustStore;
     }
 
