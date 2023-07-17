@@ -851,6 +851,7 @@ int test2a(struct Options options)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
 	if (options.client_private_key_file != NULL)
 		opts.ssl->privateKey = options.client_private_key_file;
+
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 1;
 	opts.ssl->verify = 1;
@@ -966,6 +967,9 @@ int test2b(struct Options options)
 	opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
 	if (options.client_key_pass != NULL)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
+	if (options.client_private_key_file != NULL)
+		opts.ssl->privateKey = options.client_private_key_file;
+
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 0;
 
@@ -1061,6 +1065,9 @@ int test2c(struct Options options)
 	opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
 	if (options.client_key_pass != NULL)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
+	if (options.client_private_key_file != NULL)
+		opts.ssl->privateKey = options.client_private_key_file;
+
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 0;
 
@@ -1281,6 +1288,9 @@ int test2e(struct Options options)
 	opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
 	if (options.client_key_pass != NULL)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
+	if (options.client_private_key_file != NULL)
+		opts.ssl->privateKey = options.client_private_key_file;
+
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 1;
 	opts.ssl->verify = 1;
@@ -1388,6 +1398,9 @@ int test3a(struct Options options)
 		opts.ssl->trustStore = options.server_key_file; /*file of certificates trusted by client*/
 	//opts.ssl->keyStore = options.client_key_file;  /*file of certificate for client to present to server*/
 	//if (options.client_key_pass != NULL) opts.ssl->privateKeyPassword = options.client_key_pass;
+	//	if (options.client_private_key_file != NULL)
+	//	opts.ssl->privateKey = options.client_private_key_file;
+
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 1;
 
@@ -1610,6 +1623,9 @@ int test4(struct Options options)
 	//opts.ssl->keyStore = options.client_key_file;  /*file of certificate for client to present to server*/
 	//if (options.client_key_pass != NULL) opts.ssl->privateKeyPassword = options.client_key_pass;
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
+	//	if (options.client_private_key_file != NULL)
+	//	opts.ssl->privateKey = options.client_private_key_file;
+
 	opts.ssl->enableServerCertAuth = 0;
 
 	rc = MQTTAsync_setCallbacks(c, &tc, NULL, asyncTestMessageArrived,
@@ -1723,6 +1739,9 @@ int test5a(struct Options options)
 	//opts.ssl->trustStore = /*file of certificates trusted by client*/
 	//opts.ssl->keyStore = options.client_key_file;  /*file of certificate for client to present to server*/
 	//if (options.client_key_pass != NULL) opts.ssl->privateKeyPassword = options.client_key_pass;
+	//	if (options.client_private_key_file != NULL)
+	//	opts.ssl->privateKey = options.client_private_key_file;
+
 	opts.ssl->enabledCipherSuites = "aNULL";
 	opts.ssl->enableServerCertAuth = 0;
 
@@ -2085,6 +2104,9 @@ int test6(struct Options options)
 		opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
 		if (options.client_key_pass != NULL)
 			opts.ssl->privateKeyPassword = options.client_key_pass;
+		if (options.client_private_key_file != NULL)
+			opts.ssl->privateKey = options.client_private_key_file;
+
 		//opts.ssl->enabledCipherSuites = "DEFAULT";
 		//opts.ssl->enabledServerCertAuth = 1;
 
@@ -2308,6 +2330,9 @@ int test7(struct Options options)
 
 	test_finished = failures = 0;
 
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	MQTTAsync_setTraceCallback(handleTrace);
+
 	MyLog(LOGA_INFO, "Starting test 7 - big messages");
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
 	global_start_time = start_clock();
@@ -2354,6 +2379,9 @@ int test7(struct Options options)
 		opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
 	if (options.client_key_pass != NULL)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
+	if (options.client_private_key_file != NULL)
+		opts.ssl->privateKey = options.client_private_key_file;
+
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 1;
 
@@ -2568,6 +2596,9 @@ int test9(struct Options options)
 	opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
 	if (options.client_key_pass != NULL)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
+	if (options.client_private_key_file != NULL)
+		opts.ssl->privateKey = options.client_private_key_file;
+
 	opts.ssl->CApath = options.capath;
 	opts.ssl->enableServerCertAuth = 1;
 	opts.ssl->verify = 1;
@@ -2689,6 +2720,9 @@ int test10(struct Options options)
 	opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
 	if (options.client_key_pass != NULL)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
+	if (options.client_private_key_file != NULL)
+		opts.ssl->privateKey = options.client_private_key_file;
+
 	opts.ssl->CApath = "DUMMY";
 	opts.ssl->enableServerCertAuth = 1;
 	opts.ssl->verify = 1;
@@ -2732,7 +2766,6 @@ int main(int argc, char** argv)
 	fprintf(xml, "<testsuite name=\"test5\" tests=\"%d\">\n", (int)ARRAY_SIZE(tests) - 1);
 	MQTTAsync_setTraceCallback(handleTrace);
 	getopts(argc, argv);
-
 	if (options.test_no == 0)
 	{ /* run all the tests */
 		for (options.test_no = 1; options.test_no < ARRAY_SIZE(tests); ++options.test_no)
@@ -2745,7 +2778,8 @@ int main(int argc, char** argv)
 	}
 	else
 	{
-		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
+		//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
+		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 		rc = tests[options.test_no](options); /* run just the selected test */
 	}
 
