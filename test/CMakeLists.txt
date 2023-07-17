@@ -8,6 +8,7 @@ SET(MQTT_SSL_HOSTNAME "localhost" CACHE STRING "Hostname of a test SSL MQTT brok
 SET(MQTT_QUIC_HOSTNAME "localhost" CACHE STRING "Hostname of a test QUIC MQTT broker to use")
 
 SET(CERTDIR ${CMAKE_SOURCE_DIR}/test/ssl)
+SET(EMQX_CERTDIR ${CMAKE_SOURCE_DIR}/test/ssl/emqx/etc/certs/)
 
 
 IF (WIN32)
@@ -1320,57 +1321,57 @@ IF (PAHO_WITH_MSQUIC)
 
 		ADD_TEST(
 			NAME test9000-1-ssl-connection-to-no-SSL-server
-			COMMAND test9000 "--test_no" "1" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "1" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-2a-mutual-ssl-auth-certificates-in-place
-            COMMAND test9000 "--test_no" "2" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+            COMMAND test9000 "--test_no" "2" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-2b-mutual-ssl-auth-broker-missing-client-cert
-			COMMAND test9000 "--test_no" "3" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "3" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-2c-mutual-ssl-auth-client-missing-broker-cert
-			COMMAND test9000 "--test_no" "4" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "4" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-2d-mutual-ssl-auth-client-missing-client-cert
-			COMMAND test9000 "--test_no" "5" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "5" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-3a-server-auth-server-cert-in-client-store
-			COMMAND test9000 "--test_no" "6" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "6" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-3b-server-auth-client-missing-broker-cert
-			COMMAND test9000 "--test_no" "7" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "7" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-4-accept-invalid-certificates
-			COMMAND test9000 "--test_no" "8" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "8" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-6-multiple-connections
-			COMMAND test9000 "--test_no" "9" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "9" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
 			NAME test9000-7-big-messages
-			COMMAND test9000 "--test_no" "10" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+			COMMAND test9000 "--test_no" "10" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
 		)
 
 		ADD_TEST(
             NAME test9000-2e-ssl-with-ha
-            COMMAND test9000 "--test_no" "14" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem"
+            COMMAND test9000 "--test_no" "14" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
         )
 
 		#ADD_TEST(
@@ -1382,12 +1383,12 @@ IF (PAHO_WITH_MSQUIC)
 			# OpenSSL CApath tests rely on Unix-type filesystem - can it work on Windows?
 			ADD_TEST(
 				NAME test9000-5-server-verify-with-capath
-				COMMAND test9000 "--test_no" "12" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem" "--capath"	"/home/ubuntu/repo/emqx/apps/emqx/etc/certs/"
+				COMMAND test9000 "--test_no" "12" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem" "--capath"	"${EMQX_CERTDIR}/"
 			)
 
 			ADD_TEST(
 				NAME test9000-6-server-verify-with-capath
-				COMMAND test9000 "--test_no" "13" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-cert.pem" "--server_key" "cacert.pem" "--client_private_key" "/home/ubuntu/repo/emqx/apps/emqx/etc/certs/client-key.pem" "--capath"	"/home/ubuntu/repo/emqx/apps/emqx/etc/certs/NOTEXIST"
+				COMMAND test9000 "--test_no" "13" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem" "--capath"	"${EMQX_CERTDIR}/NOTEXIST"
 			)
 
 			SET_TESTS_PROPERTIES(
