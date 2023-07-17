@@ -146,6 +146,14 @@ void getopts(int argc, char** argv)
 			else
 				usage();
 		}
+		else if (strcmp(argv[count], "--client_private_key") == 0)
+		{
+			if (++count < argc)
+				options.client_private_key_file = argv[count];
+			else
+				usage();
+		}
+
 		else if (strcmp(argv[count], "--capath") == 0)
 		{
 			if (++count < argc)
@@ -841,6 +849,8 @@ int test2a(struct Options options)
 	opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
 	if (options.client_key_pass != NULL)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
+	if (options.client_private_key_file != NULL)
+		opts.ssl->privateKey = options.client_private_key_file;
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 1;
 	opts.ssl->verify = 1;
