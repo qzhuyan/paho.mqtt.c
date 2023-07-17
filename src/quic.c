@@ -634,12 +634,12 @@ ClientLoadConfiguration(
     CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
     CredConfig.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
 
-    // @TODO flip
-    //if (sslopts->enableServerCertAuth) {
-    if (1) {
+    // @FIXME this is temporary workaround
+    if (sslopts->enableServerCertAuth) {
         CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
     }
 
+    // @TODO move to QUIC_new
     CredConfig.CertificateFile
         = (QUIC_CERTIFICATE_FILE *)malloc(sizeof(QUIC_CERTIFICATE_FILE));
 
@@ -648,10 +648,25 @@ ClientLoadConfiguration(
         sslopts->keyStore, sslopts->trustStore);
     // Cert
     CredConfig.CertificateFile->CertificateFile = sslopts->keyStore;
-    // Key is placed in the certfile too?
+
+    if (NULL == sslopts->privateKey)
+    {
+        sslopts->privateKey = sslopts->keyStore;
+    }
+
     CredConfig.CertificateFile->PrivateKeyFile = sslopts->keyStore;
+
+    char sbuf[PATH_MAX];
     // CACert
-    CredConfig.CaCertificateFile = sslopts->trustStore;
+    if (sslopts->CApath != NULL)
+    {
+        sprintf(sbuf, "%s/%s", sslopts->CApath, sslopts->trustStore);
+        CredConfig.CaCertificateFile = sbuf;
+    }
+    else
+    {
+        CredConfig.CaCertificateFile = sslopts->trustStore;
+    }
 
     //
     // Allocate/initialize the configuration object, with the configured ALPN
@@ -660,6 +675,7 @@ ClientLoadConfiguration(
     QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
     if (QUIC_FAILED(Status = MsQuic->ConfigurationOpen(q_ctx->Registration, &Alpn, 1, &Settings, sizeof(Settings), NULL, &q_ctx->Configuration))) {
         Log(TRACE_MINIMUM, -1, "ConfigurationOpen failed, 0x%x!\n", Status);
+        free(CredConfig.CertificateFile);
         return FALSE;
     }
 
@@ -669,9 +685,10 @@ ClientLoadConfiguration(
     //
     if (QUIC_FAILED(Status = MsQuic->ConfigurationLoadCredential(q_ctx->Configuration, &CredConfig))) {
         Log(TRACE_MINIMUM, -1, "ConfigurationLoadCredential failed, 0x%x!\n", Status);
+        free(CredConfig.CertificateFile);
         return FALSE;
     }
-
+    free(CredConfig.CertificateFile);
     FUNC_EXIT;
     return TRUE;
 }
@@ -710,6 +727,10 @@ ClientConnectionCallback(
             Log(TRACE_MINIMUM, -1, "[conn][%p] Successfully shut down on idle.", Connection);
         } else {
             Log(TRACE_MINIMUM, -1, "[conn][%p] Shut down by transport, 0x%x", Connection, Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status);
+            if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status > QUIC_STATUS_CLOSE_NOTIFY)
+            {
+                Log(LOG_ERROR, -1, "TLS alert: %s", ERR_reason_error_string(Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status-QUIC_STATUS_CLOSE_NOTIFY));
+            }
         }
         break;
     case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:

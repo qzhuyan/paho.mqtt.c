@@ -141,6 +141,8 @@ cmake --build ./ && src/samples/MQTTAsync_quic_publish
 1. Support fallback to TCP/TLS when first attempt fail
 1. Doc the functions with paho doc styles
 1. Add tests for quic transport
+1. RECEIVE buffer
+1. MAYBE SendBuffer
 1. Support multi streams
    Connection is one MQTTAsync
    Depends on the stream type MQTTAsync could have recv thread or send thread
@@ -149,6 +151,7 @@ cmake --build ./ && src/samples/MQTTAsync_quic_publish
 1. [DONE] paho style logging
 1. [DONE] fixing issue provided by Memory Allocation Tracing
 1. [REJECT]Set quic flag to 2 in MQTTAsync to enable TCP/TLS fallback
+
 
 ## References
 
