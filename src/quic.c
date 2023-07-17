@@ -655,31 +655,37 @@ ClientLoadConfiguration(
     QUIC_CREDENTIAL_CONFIG CredConfig;
     memset(&CredConfig, 0, sizeof(CredConfig));
 
-    // @TODO: Support other types of credentials
-    CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
-    CredConfig.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
 
     // @FIXME this is temporary workaround
-    if (sslopts->enableServerCertAuth) {
+    if (sslopts->enableServerCertAuth || !sslopts->keyStore) {
         CredConfig.Flags |= QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
     }
 
+    CredConfig.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
+
     // @TODO move to QUIC_new
-    CredConfig.CertificateFile
-        = (QUIC_CERTIFICATE_FILE *)malloc(sizeof(QUIC_CERTIFICATE_FILE));
-
-
-    Log(TRACE_MINIMUM, -1, "Loading certificate file: %s, CaCert: %s, \n",
-        sslopts->keyStore, sslopts->trustStore);
-    // Cert
-    CredConfig.CertificateFile->CertificateFile = sslopts->keyStore;
-
-    if (NULL == sslopts->privateKey)
+    //
+    if (sslopts->keyStore)
     {
-        sslopts->privateKey = sslopts->keyStore;
-    }
+        // @TODO: Support other types of credentials
+        CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
+        CredConfig.CertificateFile
+            = (QUIC_CERTIFICATE_FILE *)malloc(sizeof(QUIC_CERTIFICATE_FILE));
 
-    CredConfig.CertificateFile->PrivateKeyFile = sslopts->keyStore;
+        Log(TRACE_MINIMUM, -1, "Loading certificate file: %s, CaCert: %s, \n",
+            sslopts->keyStore, sslopts->trustStore);
+        // Cert
+        CredConfig.CertificateFile->CertificateFile = sslopts->keyStore;
+
+        if (NULL == sslopts->privateKey)
+        {
+            sslopts->privateKey = sslopts->keyStore;
+        }
+        CredConfig.CertificateFile->PrivateKeyFile = sslopts->keyStore;
+    }
+    else {
+        CredConfig.Flags = QUIC_CREDENTIAL_FLAG_CLIENT;
+    }
 
     char sbuf[PATH_MAX];
     // CACert
@@ -688,7 +694,7 @@ ClientLoadConfiguration(
         sprintf(sbuf, "%s/%s", sslopts->CApath, sslopts->trustStore);
         CredConfig.CaCertificateFile = sbuf;
     }
-    else
+    else if (sslopts->trustStore)
     {
         CredConfig.CaCertificateFile = sslopts->trustStore;
     }
@@ -711,6 +717,7 @@ ClientLoadConfiguration(
     if (QUIC_FAILED(Status = MsQuic->ConfigurationLoadCredential(q_ctx->Configuration, &CredConfig))) {
         Log(TRACE_MINIMUM, -1, "ConfigurationLoadCredential failed, 0x%x!\n", Status);
         free(CredConfig.CertificateFile);
+        FUNC_EXIT;
         return FALSE;
     }
     free(CredConfig.CertificateFile);
