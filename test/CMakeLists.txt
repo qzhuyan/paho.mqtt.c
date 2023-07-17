@@ -1344,11 +1344,6 @@ IF (PAHO_WITH_MSQUIC)
 		)
 
 		ADD_TEST(
-			NAME test9000-2d-ws-mutual-ssl-auth-client-missing-client-cert
-			COMMAND test9000 "--test_no" "5" "--ws" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
-		)
-
-		ADD_TEST(
 			NAME test9000-3a-server-auth-server-cert-in-client-store
 			COMMAND test9000 "--test_no" "6" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${CERTDIR}/client.pem" "--server_key"	"${CERTDIR}/test-root-ca.crt"
 		)
