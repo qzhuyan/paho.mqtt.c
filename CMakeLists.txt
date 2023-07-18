@@ -52,6 +52,7 @@ SET(PAHO_BUILD_SAMPLES FALSE CACHE BOOL "Build sample programs")
 SET(PAHO_BUILD_DEB_PACKAGE FALSE CACHE BOOL "Build debian package")
 SET(PAHO_ENABLE_TESTING TRUE CACHE BOOL "Build tests and run")
 SET(PAHO_ENABLE_CPACK TRUE CACHE BOOL "Enable CPack")
+SET(PAHO_ENABLE_QUIC_LOGGING FALSE CACHE BOOL "Enable QUIC logging, requires lttng")
 SET(PAHO_HIGH_PERFORMANCE FALSE CACHE BOOL "Disable tracing and heap tracking")
 SET(PAHO_USE_SELECT FALSE CACHE BOOL "Revert to select system call instead of poll")
 

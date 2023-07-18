@@ -313,7 +313,7 @@ IF (PAHO_WITH_SSL)
         GIT_SUBMODULES_SHALLOW 1
         PREFIX "${CMAKE_BINARY_DIR}/external"
         SOURCE_DIR "${CMAKE_BINARY_DIR}/external/msquic"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE=RelWithDebInfo -DQUIC_TLS=openssl3 -DQUIC_OUTPUT_DIR=${CMAKE_BINARY_DIR}/external/msquic/src/msquic
+        CMAKE_ARGS -DQUIC_ENABLE_LOGGING=${PAHO_ENABLE_QUIC_LOGGING} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DQUIC_TLS=openssl3 -DQUIC_OUTPUT_DIR=${CMAKE_BINARY_DIR}/external/msquic/src/msquic
         BUILD_COMMAND ${CMAKE_COMMAND} --build .
         INSTALL_COMMAND ""
         )
