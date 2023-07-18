@@ -123,34 +123,47 @@ mkdir _build
 cd _build
 cmake -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_MSQUIC=TRUE -DPAHO_WITH_SSL=TRUE \
 -DPAHO_BUILD_SHARED=TRUE -DPAHO_BUILD_SAMPLES=TRUE ../
-cmake --build ./ && src/samples/MQTTAsync_quic_publish
+cmake --build 
+```
+
+## Debug build with lttng tracing
+```
+mkdir _build
+cd _build
+cmake -DCMAKE_BUILD_TYPE=Debug \
+      -DPAHO_WITH_MSQUIC=TRUE -DPAHO_WITH_SSL=TRUE \
+      -DPAHO_BUILD_SHARED=TRUE \
+      -DPAHO_BUILD_SAMPLES=TRUE \
+      -DPAHO_ENABLE_QUIC_LOGGING=TRUE \
+      ../
+cmake --build 
 ```
 
 ## Limitation
 1. Does not support MQTT STATIC link
+1. Async Client API support ONLY
 1. Don't support proxy 
-1. Only single stream
+1. Support single stream, no multistream 
 1. No Windows support for now
 1. No sync API support
 
 ## TODO
-
 1. Double check mutex 
 1. Check all callbacks
-1. TLS configuration
-1. Support fallback to TCP/TLS when first attempt fail
 1. Doc the functions with paho doc styles
-1. Add tests for quic transport
-1. RECEIVE buffer
 1. MAYBE SendBuffer
-1. Support multi streams
+1. [DEFER] Support multi streams
    Connection is one MQTTAsync
    Depends on the stream type MQTTAsync could have recv thread or send thread
 1. Impl get peer
+1. [DONE] Add tests for quic transport
+1. [DONE] TLS configuration
 1. [DONE] Support Reconnect
 1. [DONE] paho style logging
 1. [DONE] fixing issue provided by Memory Allocation Tracing
-1. [REJECT]Set quic flag to 2 in MQTTAsync to enable TCP/TLS fallback
+1. [DONE] RECEIVE buffer, reused SocketBuffer
+1. [REJECT] Support fallback to TCP/TLS when first attempt fail
+1. [REJECT] Set quic flag to 2 in MQTTAsync to enable TCP/TLS fallback
 
 
 ## References
