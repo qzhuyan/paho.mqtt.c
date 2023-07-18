@@ -327,7 +327,6 @@ IF (PAHO_WITH_SSL)
     set_property(TARGET msquic PROPERTY IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/external/msquic/src/msquic/libmsquic.so)
 
     # Link against the library
-    #add_executable(YourExecutable main.cpp)
     target_link_libraries(common_obj msquic)
 
     # Specify the dependency on the external library

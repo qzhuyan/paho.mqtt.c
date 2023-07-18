@@ -421,7 +421,6 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 	else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
 	{
 		serverURI += strlen(URI_QUIC);
-		m->ssl = 0; // maybe not necessary
 		m->quic = 1;
 	}
 #endif
@@ -766,7 +765,7 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 		m->c->will->topic = MQTTStrdup(options->will->topicName);
 	}
 
-#if defined(OPENSSL) // @TODO or MSQUIC
+#if defined(OPENSSL)
 	if (m->c->sslopts)
 	{
 		if (m->c->sslopts->trustStore)

@@ -237,7 +237,7 @@ typedef struct
 	/** 1 = we do openssl init, 0 = leave it to the application */
 	int do_openssl_init;
 	/** 1 = we do msquic init, 0 = leave it to the application */
-	int do_msquic_init;
+	int do_msquic_init; //@TODO: not implemented yet
 } MQTTAsync_init_options;
 
 #define MQTTAsync_init_options_initializer { {'M', 'Q', 'T', 'G'}, 0, 0 }
@@ -1380,8 +1380,6 @@ typedef struct
 	 * HTTPS proxy
 	 */
 	const char* httpsProxy;
-
-	//const void* quic; // @TODO
 } MQTTAsync_connectOptions;
 
 /** Initializer for connect options for MQTT 3.1.1 non-WebSocket connections */

@@ -131,7 +131,8 @@ cmake --build
 mkdir _build
 cd _build
 cmake -DCMAKE_BUILD_TYPE=Debug \
-      -DPAHO_WITH_MSQUIC=TRUE -DPAHO_WITH_SSL=TRUE \
+      -DPAHO_WITH_MSQUIC=TRUE \ 
+      -DPAHO_WITH_SSL=TRUE \
       -DPAHO_BUILD_SHARED=TRUE \
       -DPAHO_BUILD_SAMPLES=TRUE \
       -DPAHO_ENABLE_QUIC_LOGGING=TRUE \
@@ -148,6 +149,8 @@ cmake --build
 1. No sync API support
 
 ## TODO
+
+1. QUIC and none QUIC use same pollset
 1. Double check mutex 
 1. Check all callbacks
 1. Doc the functions with paho doc styles
