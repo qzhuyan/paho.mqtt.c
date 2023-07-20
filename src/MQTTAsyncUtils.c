@@ -3026,8 +3026,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	int rc1 = 0;
 
 	FUNC_ENTRY;
-// @TODO: merge QUIC_getReadySocket and Socket_getReadySocket into one
-#if defined(MSQUIC)
+#if defined(MSQUIC_USE_EPOLL)
 	*sock = QUIC_getReadySocket(0, 0, socket_mutex, rc);
 	if(*sock != 0)
 		Log(TRACE_MINIMUM, -1, "QUIC is waiting at sock %d\n", *sock);
@@ -3041,7 +3040,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 
 		/* 0 from getReadySocket indicates no work to do, rc -1 == error */
 		// @FIXME timeout
-		*sock = Socket_getReadySocket(0, 1, socket_mutex, &rc1);
+		*sock = Socket_getReadySocket(0, timeout, socket_mutex, &rc1);
 		*rc = rc1;
 		MQTTAsync_lock_mutex(mqttasync_mutex);
 		should_stop = MQTTAsync_tostop;
@@ -3056,7 +3055,25 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	{
 		MQTTAsyncs* m = NULL;
 		if (ListFindItem(MQTTAsync_handles, sock, clientSockCompare) != NULL)
+		{
 			m = (MQTTAsync)(MQTTAsync_handles->current->content);
+#if defined(MSQUIC) && !defined(MSQUIC_USE_EPOLL)
+			if (m->quic)
+			{
+				uint64_t u = -1;
+				if (0 == read(*sock, &u, sizeof(u)))
+				{
+					// socket may closed
+					Log(TRACE_MINIMUM, -1, "eventfd object is not readable: %d\n", *sock);
+					*rc = -1;
+				}
+				else
+				{
+					Log(TRACE_MINIMUM, -1, "eventfd object is readable: %d\n", *sock);
+				}
+			}
+#endif //MSQUIC
+		}
 		if (m != NULL)
 		{
 			Log(TRACE_MINIMUM, -1, "m->c->connect_state = %d", m->c->connect_state);

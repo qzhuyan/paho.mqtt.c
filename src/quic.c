@@ -28,7 +28,9 @@ static int QUIC_addSocket(SOCKET newSd);
  */
 extern mutex_type socket_mutex;
 
+#if defined(MSQUIC_USE_EPOLL)
 int epollfd_read = -1; /**< epoll file descriptor */
+#endif
 
 /*=================================*/
 /* Global QUIC Vars                */
@@ -54,10 +56,12 @@ void MSQUIC_initialize()
         }
     }
 
+#if defined(MSQUIC_USE_EPOLL)
     if(-1 == epollfd_read)
     {
         epollfd_read = epoll_create1(0);
     }
+#endif
     FUNC_EXIT;
     return;
 Error:
@@ -575,6 +579,8 @@ void QUIC_setWriteAvailableCallback(QUIC_writeAvailable* mywriteavailable)
   FUNC_EXIT;
 }
 
+#if defined(MSQUIC_USE_EPOLL)
+
 /**
  *  Returns the next socket ready for communications as indicated by epoll
  *  @param more_work flag to indicate more work is waiting, and thus a timeout value of 0 should
@@ -629,8 +635,8 @@ SOCKET QUIC_getReadySocket(int more_work, int timeout_ms, mutex_type mutex, int*
 
     FUNC_EXIT_RC(*rc);
     return socket;
-}
-
+} //QUIC_getReadySocket
+#endif // MSQUIC_USE_EPOLL
 /*
 ** Internals
 */
@@ -953,6 +959,7 @@ int QUIC_addSocket(SOCKET newSd)
 
 	FUNC_ENTRY;
 	Thread_lock_mutex(socket_mutex);
+#if defined(MSQUIC_USE_EPOLL)
     struct epoll_event ev;
     ev.events = EPOLLIN | EPOLLET;
     ev.data.fd = newSd;
@@ -960,6 +967,9 @@ int QUIC_addSocket(SOCKET newSd)
         Log(LOG_FATAL, -1, "epoll_ctl error: %s\n", strerror(errno));
     }
     Log(TRACE_MINIMUM, -1, "epoll_ctl add socket success\n");
+#else
+    Socket_addSocket(newSd);
+#endif
 exit:
 	Thread_unlock_mutex(socket_mutex);
 	FUNC_EXIT_RC(rc);

@@ -9,7 +9,7 @@
 ### New Macro 'MSQUIC' wraps mqtt over quic code
 
 ### New flag 'quic' in struct **networkHandles**
-The flag indicates the current connection is quic.
+The flag indicates the current network transport in use is quic.
 
 ### New flag 'quic' in struct **MQTTAsync_struct** for async API
 
@@ -41,6 +41,8 @@ How to map socket to connection/stream?
 1. [Removed] In `MQTTAsync_createWithOptions` Set m.ssl = 3 for QUIC ssl option parsing in MQTT
 
 ### Callback triggering
+
+Callbacks are kept as they are.
 
 #### Connected
 
@@ -149,9 +151,8 @@ cmake --build
 1. No sync API support
 
 ## TODO
-
-1. QUIC and none QUIC use same pollset
-1. Double check mutex 
+1. Double check mutex
+   All `extern mutex_type` are in `MQTTAsyncUtils.c`
 1. Check all callbacks
 1. Doc the functions with paho doc styles
 1. MAYBE SendBuffer
@@ -159,6 +160,7 @@ cmake --build
    Connection is one MQTTAsync
    Depends on the stream type MQTTAsync could have recv thread or send thread
 1. Impl get peer
+1. [DONE] QUIC and none QUIC both should use poll
 1. [DONE] Add tests for quic transport
 1. [DONE] TLS configuration
 1. [DONE] Support Reconnect
