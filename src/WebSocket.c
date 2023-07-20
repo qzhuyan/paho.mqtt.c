@@ -621,7 +621,7 @@ int WebSocket_getch(networkHandles *net, char* c)
 			rc = TCPSOCKET_COMPLETE;
 		}
 	}
-#if defined(MSQUIC) // && !defined(PAHO_MQTT_STATIC)
+#if defined(MSQUIC)
 	else if ( net->quic )
 	{
 		rc = QUIC_getch(net->q_ctx, c);

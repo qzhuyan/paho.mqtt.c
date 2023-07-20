@@ -315,7 +315,7 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
         {
             // Already closed by MsQuic Stack
             Log(TRACE_MINIMUM, -1, "Free q_ctx in QUIC_close: %p\n", q_ctx);
-            close(q_ctx->Socket);
+            Socket_close(q_ctx->Socket);
             pthread_mutex_unlock(&q_ctx->mutex);
             pthread_mutex_destroy(&q_ctx->mutex);
             if(q_ctx->recv_buf)
@@ -808,7 +808,7 @@ ClientConnectionCallback(
             // safe to unlock
             Log(TRACE_MINIMUM, -1, "[conn][%p] Connection already closed by app: %p", Connection, q_ctx);
             pthread_mutex_unlock(&q_ctx->mutex);
-            close(q_ctx->Socket);
+            Socket_close(q_ctx->Socket);
             if (q_ctx->recv_buf)
             {
                 free(q_ctx->recv_buf);
@@ -923,9 +923,14 @@ ClientStreamCallback(
             MsQuic->StreamClose(Stream);
         }
         q_ctx->is_closed = TRUE;
-        if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
+        if (q_ctx->shutdown_state != SHUTDOWN_STATE_APP)
         {
-            Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE, strerror(errno));
+            // we only write to the eventfd if the shutdown is not initiated by the app
+            // because if app closed it, the fd indexing is gone.
+            if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
+            {
+                Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE, strerror(errno));
+            }
         }
         break;
     default:
