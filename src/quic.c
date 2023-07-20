@@ -318,6 +318,10 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
             close(q_ctx->Socket);
             pthread_mutex_unlock(&q_ctx->mutex);
             pthread_mutex_destroy(&q_ctx->mutex);
+            if(q_ctx->recv_buf)
+            {
+                free(q_ctx->recv_buf);
+            }
             MsQuic->ConfigurationClose(q_ctx->Configuration);
             MsQuic->RegistrationClose(q_ctx->Registration);
             printf("registration closed\n");
@@ -805,6 +809,10 @@ ClientConnectionCallback(
             Log(TRACE_MINIMUM, -1, "[conn][%p] Connection already closed by app: %p", Connection, q_ctx);
             pthread_mutex_unlock(&q_ctx->mutex);
             close(q_ctx->Socket);
+            if (q_ctx->recv_buf)
+            {
+                free(q_ctx->recv_buf);
+            }
             MsQuic->ConfigurationClose(q_ctx->Configuration);
             // @NOTE never call RegistrationClose from here
             pthread_mutex_destroy(&q_ctx->mutex);
