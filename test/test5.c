@@ -809,8 +809,6 @@ int test2a(struct Options options)
 
 	failures = 0;
 	MyLog(LOGA_INFO, "Starting test 2a - Mutual SSL authentication");
-	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
-	MQTTAsync_setTraceCallback(handleTrace);
 
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
 	global_start_time = start_clock();
@@ -926,7 +924,6 @@ int test2b(struct Options options)
 	MQTTAsync_connectOptions opts = MQTTAsync_connectOptions_initializer;
 	MQTTAsync_willOptions wopts = MQTTAsync_willOptions_initializer;
 	MQTTAsync_SSLOptions sslopts = MQTTAsync_SSLOptions_initializer;
-	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 	int rc = 0;
 	int count = 0;
 
@@ -1146,7 +1143,7 @@ int test2d(struct Options options)
 	for (iteration = 0; !failures && (iteration < 20) ; iteration++)
 	{
 		count = 0;
-		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
 
 		rc = MQTTAsync_create(&c, options.mutual_auth_connection,
 				      "test2d", MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
@@ -2049,7 +2046,7 @@ void test6OnPublishFailure(void* context, MQTTAsync_failureData* response)
 int test6(struct Options options)
 {
 	char* testname = "test6";
-#define num_clients 10
+#define num_clients 100
 	int subsqos = 2;
 	MQTTAsync_connectOptions opts = MQTTAsync_connectOptions_initializer;
 	MQTTAsync_willOptions wopts = MQTTAsync_willOptions_initializer;
@@ -2062,7 +2059,7 @@ int test6(struct Options options)
 	MyLog(LOGA_INFO, "Starting test 6 - multiple connections");
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
 	global_start_time = start_clock();
-
+	//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 	for (i = 0; i < num_clients; ++i)
 	{
 		tc[i].maxmsgs = MAXMSGS;
@@ -2330,8 +2327,8 @@ int test7(struct Options options)
 
 	test_finished = failures = 0;
 
-	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
-	MQTTAsync_setTraceCallback(handleTrace);
+	//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	//MQTTAsync_setTraceCallback(handleTrace);
 
 	MyLog(LOGA_INFO, "Starting test 7 - big messages");
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
@@ -2771,15 +2768,13 @@ int main(int argc, char** argv)
 		for (options.test_no = 1; options.test_no < ARRAY_SIZE(tests); ++options.test_no)
 		{
 			failures = 0;
-			MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
-
+			MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
 			rc += tests[options.test_no](options); /* return number of failures.  0 = test succeeded */
 		}
 	}
 	else
 	{
-		//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
-		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
 		rc = tests[options.test_no](options); /* run just the selected test */
 	}
 

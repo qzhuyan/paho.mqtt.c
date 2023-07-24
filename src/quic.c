@@ -1,4 +1,15 @@
-// @TODO copyright
+/*******************************************************************************
+ * Copyright (c) 2023 EMQ Technologies Co., William Yang and others.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v2.0
+ * and Eclipse Distribution License v1.0 which accompany this distribution.
+ *
+ * The Eclipse Public License is available at
+ *    https://www.eclipse.org/legal/epl-2.0/
+ * and the Eclipse Distribution License is available at
+ *   http://www.eclipse.org/org/documents/edl-v10.php.
+*/
 #include "StackTrace.h"
 #include "quic.h"
 #include "SocketBuffer.h"
@@ -7,22 +18,19 @@
 #include <msquic.h>
 #include <sys/eventfd.h>
 #include <sys/epoll.h>
+#include <openssl/err.h>
 
 #ifndef UNREFERENCED_PARAMETER
 #define UNREFERENCED_PARAMETER(P) (void)(P)
 #endif
 
 static void maybe_recv_complete(QUIC_CTX*);
-static int QUIC_addSocket(SOCKET newSd);
 
+static int QUIC_addSocket(SOCKET newSd);
 
 /*=================================*/
 /* Global QUIC handles             */
 /*=================================*/
-/* `Configuration` abstracts the configuration for a connection, */
-/*   security and common QUIC Settings */
-
-
 /**
  * Structure to hold all socket data for this module
  */
@@ -38,7 +46,7 @@ int epollfd_read = -1; /**< epoll file descriptor */
 const QUIC_API_TABLE* MsQuic = NULL;
 const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
 
-const QUIC_REGISTRATION_CONFIG RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+const QUIC_REGISTRATION_CONFIG RegConfig = { "default", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 
 BOOLEAN ClientLoadConfiguration (QUIC_CTX* q_ctx, MQTTClient_SSLOptions *sslopts);
 
@@ -73,17 +81,7 @@ Error:
 void QUIC_handleInit(int boolean)
 {
     FUNC_ENTRY;
-    QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
-    //
-    // Open a handle to the library and get the API function table.
-    //
-    if(NULL == MsQuic)
-    {
-        if (QUIC_FAILED(Status = MsQuicOpen2(&MsQuic))) {
-            Log(LOG_FATAL, -1, "MsQuicOpen2 failed, 0x%x!", Status);
-        }
-    }
-
+    MSQUIC_initialize();
     FUNC_EXIT;
 }
 
@@ -127,6 +125,7 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
     *c = *(q_ctx->recv_buf + q_ctx->recv_buf_offset);
     Log(TRACE_MINIMUM, -1, "quic_get_ch %d @ %d\n", *c, q_ctx->recv_buf_offset);
     q_ctx->recv_buf_offset += 1; // one char
+    assert(q_ctx->recv_buf_offset <= q_ctx->recv_buf_size);
     maybe_recv_complete(q_ctx);
     SocketBuffer_queueChar(q_ctx->Socket, *c);
     if (q_ctx->is_closed)
@@ -186,9 +185,10 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
     {
         // consume partial buffers, no update on desired_bytes
         Log(TRACE_MINIMUM, -1, "we have left %ld, consumed %ld", left_in_recvbuf-desired_bytes, desired_bytes);
-        // Trigger another read for left data
+        // Trigger another read for left data in the same read thread.
         if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
         {
+            // @TODO error handling, maybe just crash
             Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_RECEIVE, strerror(errno));
         }
     }
@@ -223,7 +223,7 @@ char *QUIC_getdata(QUIC_CTX* q_ctx, size_t bytes, size_t* actual_len, int* rc)
 
     // Last set rc val
     *rc = desired_bytes;
-
+    // @FIXME this lock is not necessary? or should be moved up?
     pthread_mutex_lock(&q_ctx->mutex);
     maybe_recv_complete(q_ctx);
     pthread_mutex_unlock(&q_ctx->mutex);
@@ -269,12 +269,13 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
         offset += bufs.buflens[i];
     }
 
-    Log(LOG_ERROR, -1, "QUIC_send: %d", len);
+    Log(TRACE_MINIMUM, -1, "QUIC_send: %d", len);
 
     if (QUIC_FAILED(Status = MsQuic->StreamSend(Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer))) {
         Log(TRACE_MINIMUM, -1, "StreamSend failed, 0x%x!\n", Status);
         free(SendBuffer->Buffer);
         free(SendBuffer);
+        Status = -1; // Socket Error
         goto Error;
     }
 
@@ -288,17 +289,18 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
 {
     FUNC_ENTRY;
     QUIC_CTX *q_ctx = net->q_ctx;
+    // @TODO (feature) close with reasonCode
     if(net->q_ctx)
     {
         Log(TRACE_MINIMUM, -1, "QUIC_closing q_ctx %p\n", q_ctx);
 
         // application will no longer has access to the ctx
         // from networkHandles
+        // @FIXME: check if thread safe here?
         net->q_ctx = NULL;
         net->quic = 0;
 
         pthread_mutex_lock(&q_ctx->mutex);
-
         assert(q_ctx->shutdown_state != SHUTDOWN_STATE_APP);
 
         if (SHUTDOWN_STATE_NONE == q_ctx->shutdown_state)
@@ -310,21 +312,24 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
             pthread_mutex_unlock(&q_ctx->mutex);
             // long blocking, wait for complete clean
             MsQuic->RegistrationClose(Registration);
+            Log(TRACE_MINIMUM, -1, "registration closed %p\n", q_ctx);
         }
         else if(SHUTDOWN_STATE_STACK == q_ctx->shutdown_state)
         {
             // Already closed by MsQuic Stack
             Log(TRACE_MINIMUM, -1, "Free q_ctx in QUIC_close: %p\n", q_ctx);
+            if(q_ctx->recv_buf)
+            {
+                Log(LOG_ERROR, -1, "Closing Socket with unconsumed data: %p\n", q_ctx);
+                free(q_ctx->recv_buf);
+            }
+            // q_ctx->Socket is event socket.
             Socket_close(q_ctx->Socket);
             pthread_mutex_unlock(&q_ctx->mutex);
             pthread_mutex_destroy(&q_ctx->mutex);
-            if(q_ctx->recv_buf)
-            {
-                free(q_ctx->recv_buf);
-            }
             MsQuic->ConfigurationClose(q_ctx->Configuration);
             MsQuic->RegistrationClose(q_ctx->Registration);
-            printf("registration closed\n");
+            Log(TRACE_MINIMUM, -1, "registration closed %p\n", q_ctx);
             free(q_ctx);
         }
 
@@ -484,8 +489,9 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         goto exit;
     }
 
-    //@TODO: check return value
+
     QUIC_addSocket(net->socket);
+
     if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(net->q_ctx->Registration, ClientConnectionCallback, net->q_ctx, &net->q_ctx->Connection))) {
         Log(TRACE_MINIMUM, -1, "ConnectionOpen failed, 0x%x!\n", Status);
         goto exit;
@@ -503,17 +509,20 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     }
 
 
-    // Load configuration, @TODO: Load SSL configuration
+    // Load configuration
     if (!ClientLoadConfiguration(net->q_ctx, sslopts)) {
-        Log(LOG_ERROR, -1, "!!!!!!!client load conf failed\n");
+        Log(LOG_ERROR, -1, "Client load conf failed\n");
         Status = SOCKET_ERROR; // @FIXME we may not use Status
         goto exit;
     }
 
 
-    if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection, QUIC_STREAM_OPEN_FLAG_NONE, ClientStreamCallback, net->q_ctx, &net->q_ctx->Stream)))
+    if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection,
+                                                QUIC_STREAM_OPEN_FLAG_NONE,
+                                                ClientStreamCallback,
+                                                net->q_ctx, &net->q_ctx->Stream)))
     {
-        Log(TRACE_MINIMUM, -1, "StreamOpen failed, 0x%x!\n", Status);
+        Log(LOG_ERROR, -1, "StreamOpen failed, 0x%x!\n", Status);
         goto exit;
     }
 
@@ -545,6 +554,7 @@ int QUIC_noPendingWrites(QSOCKET socket)
 char* QUIC_getpeer(QSOCKET sock)
 {
     FUNC_ENTRY;
+    // @TODO
     FUNC_EXIT;
 }
 
@@ -808,6 +818,7 @@ ClientConnectionCallback(
             // safe to unlock
             Log(TRACE_MINIMUM, -1, "[conn][%p] Connection already closed by app: %p", Connection, q_ctx);
             pthread_mutex_unlock(&q_ctx->mutex);
+            // App already closed the eventfd. We only need to remove socket from the list
             Socket_close(q_ctx->Socket);
             if (q_ctx->recv_buf)
             {
@@ -820,7 +831,6 @@ ClientConnectionCallback(
             goto exit;
         } else {
             q_ctx->shutdown_state = SHUTDOWN_STATE_STACK;
-            pthread_mutex_unlock(&q_ctx->mutex);
         }
 
         break;
@@ -829,7 +839,7 @@ ClientConnectionCallback(
         // A resumption ticket (also called New Session Ticket or NST) was
         // received from the server.
         //
-        Log(TRACE_MINIMUM, "[conn][%p] Resumption ticket received (%u bytes):", Connection, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
+        Log(TRACE_MINIMUM, -1, "[conn][%p] Resumption ticket received (%u bytes):", Connection, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
         for (uint32_t i = 0; i < Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength; i++) {
            Log(TRACE_MAXIMUM, -1, "%.2X\n", (uint8_t)Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket[i]);
         }
@@ -870,6 +880,10 @@ ClientStreamCallback(
         //
         Log(TRACE_MINIMUM, -1, "[strm][%p] Data sent\n", Stream);
         QUIC_BUFFER* sendbuff = (QUIC_BUFFER *) Event->SEND_COMPLETE.ClientContext;
+        if (Event->SEND_COMPLETE.Canceled)
+        {
+            Log(LOG_ERROR, -1, "[strm][%p] Send Canceled\n", Stream);
+        }
         free(sendbuff->Buffer);
         free(sendbuff);
         break;
@@ -879,14 +893,23 @@ ClientStreamCallback(
         //
         if (!Event->RECEIVE.BufferCount)
         {
+            ret = QUIC_STATUS_SUCCESS;
             break;
         }
-        q_ctx->recv_buf_size = Event->RECEIVE.TotalBufferLength;
-
-        size_t len = 0;
         assert(q_ctx->recv_buf == NULL);
-        q_ctx->recv_buf = malloc(q_ctx->recv_buf_size);
+        q_ctx->recv_buf_size = Event->RECEIVE.TotalBufferLength;
+        size_t len = 0;
         size_t offset = 0;
+        q_ctx->recv_buf = malloc(q_ctx->recv_buf_size);
+
+        if (!q_ctx->recv_buf)
+        {
+            Log(LOG_ERROR, -1, "malloc failed for %d bytes", q_ctx->recv_buf_size);
+            // Return error to MsQuic for stream shutdown
+            ret = QUIC_STATUS_OUT_OF_MEMORY;
+            break;
+        }
+
         for (int i=0; i<Event->RECEIVE.BufferCount; i++) {
             memcpy(q_ctx->recv_buf+offset, Event->RECEIVE.Buffers[i].Buffer, Event->RECEIVE.Buffers[i].Length);
             offset += Event->RECEIVE.Buffers[i].Length;
@@ -897,7 +920,7 @@ ClientStreamCallback(
         Log(TRACE_MINIMUM, -1, "[strm][%p] Data received: len: %d\n", Stream, Event->RECEIVE.TotalBufferLength);
         if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
         {
-            Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_RECEIVE, strerror(errno));
+            Log(LOG_ERROR, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_RECEIVE, strerror(errno));
         }
         ret = QUIC_STATUS_PENDING;
         break;
@@ -922,14 +945,17 @@ ClientStreamCallback(
         if (!Event->SHUTDOWN_COMPLETE.AppCloseInProgress) {
             MsQuic->StreamClose(Stream);
         }
+
+        // Single stream MODE
         q_ctx->is_closed = TRUE;
-        if (q_ctx->shutdown_state != SHUTDOWN_STATE_APP)
+
+        if (TRUE) //(q_ctx->shutdown_state != SHUTDOWN_STATE_APP)
         {
-            // we only write to the eventfd if the shutdown is not initiated by the app
-            // because if app closed it, the fd indexing is gone.
             if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
             {
-                Log(TRACE_MINIMUM, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE, strerror(errno));
+                // we only write to the eventfd if the shutdown is not initiated by the app
+                // because if app closed it, the fd indexing is gone.
+                Log(LOG_ERROR, -1, "write eventfd: %d for %d, error: %s", q_ctx->Socket, QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE, strerror(errno));
             }
         }
         break;
@@ -941,7 +967,10 @@ ClientStreamCallback(
     return ret;
 }
 
-
+/*
+** Re-enable receive event.
+** @note, Caller should ensure thread safe
+ */
 void maybe_recv_complete(QUIC_CTX *q_ctx)
 {
     if(!q_ctx)

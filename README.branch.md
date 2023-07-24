@@ -141,25 +141,43 @@ cmake -DCMAKE_BUILD_TYPE=Debug \
       ../
 cmake --build 
 ```
+## Tests
+
+New tests are added in test9000 named after `rfc9000`
+
+``` sh
+ctest -R test9000 -VV 
+```
 
 ## Limitation
 1. Does not support MQTT STATIC link
 1. Async Client API support ONLY
 1. Don't support proxy 
-1. Support single stream, no multistream 
-1. No Windows support for now
+1. Support single stream, no multistreams
+1. No Windows support
 1. No sync API support
 
-## TODO
-1. Double check mutex
+## TODOs
+1. call `QUIC_close` in MQTTClient_closeSession
+1. Double check mutex usages.
    All `extern mutex_type` are in `MQTTAsyncUtils.c`
-1. Check all callbacks
-1. Doc the functions with paho doc styles
-1. MAYBE SendBuffer
-1. [DEFER] Support multi streams
-   Connection is one MQTTAsync
-   Depends on the stream type MQTTAsync could have recv thread or send thread
 1. Impl get peer
+1. test9000-2d-mutual-ssl-auth-client-missing-client-cert is too slow
+1. MAYBE SendBuffer
+1. Doc the functions with paho doc styles
+1. [DEFER] Support multi streams
+   PAHO has three threads. (send thread, recv thread )
+   Need some model check if we want to extend to more threads. 
+1. Check all callbacks
+   - onConnect
+   - onConnectFailure
+   - onSubscribe
+   - onSubscribeFailure
+   - onUnSubscribe
+   - onDisconnect
+   - onMessageArrived
+   - onPublishSuccess
+   - onPublishFailure
 1. [DONE] QUIC and none QUIC both should use poll
 1. [DONE] Add tests for quic transport
 1. [DONE] TLS configuration
