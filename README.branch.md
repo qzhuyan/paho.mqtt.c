@@ -2,9 +2,83 @@
 
 ## Description
 
+1. Add MQTT over QUIC support.
+   
+1. Fix some coredumps from the master branch.
+
+1. Fix some flaky tests from master branch.
+
+For MQTT over QUIC, check: https://www.emqx.io/docs/en/v5.1/mqtt-over-quic/introduction.html
+
+## Build
+``` bash
+mkdir _build
+cd _build
+cmake -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_MSQUIC=TRUE -DPAHO_WITH_SSL=TRUE \
+-DPAHO_BUILD_SHARED=TRUE -DPAHO_BUILD_SAMPLES=TRUE ../
+cmake --build 
+```
+
+## Example Code
+
+[Publish](src/samples/MQTTAsync_quic_publish.c)
+[Subscribe](src/samples/MQTTAsync_quic_subscribe.c)
+
+ Basicly just compare with the base ones. 
+ ```
+ diff src/samples/MQTTAsync_quic_subscribe.c  src/samples/MQTTAsync_subscribe.c 
+ ```
+
+## Debug Methods 
+
+### Build with lttng tracing.
+``` bash
+mkdir _build
+cd _build
+cmake -DCMAKE_BUILD_TYPE=Debug \
+      -DPAHO_WITH_MSQUIC=TRUE \ 
+      -DPAHO_WITH_SSL=TRUE \
+      -DPAHO_BUILD_SHARED=TRUE \
+      -DPAHO_BUILD_SAMPLES=TRUE \
+      -DPAHO_ENABLE_QUIC_LOGGING=TRUE \
+      ../
+cmake --build 
+```
+
+### Inpsect traffic with wireshark
+
+Download supported wireshark from here:
+
+[Wireshark + MQTTOverQUIC](https://emqx-my.sharepoint.com/personal/william_yang_emqx_io/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fwilliam%5Fyang%5Femqx%5Fio%2FDocuments%2FWireshark%2BMQTTOverQUIC%2Fubuntu%2Dpackages&view=0
+)
+
+
+## Tests
+
+New tests are added in test9000 named after `rfc9000`.
+
+You need to start a EMQX broker with configuration written for this test env.
+take a look in [test/emqx.conf](test/emqx.conf).
+
+### Start EMQX broker. 
+```sh
+curl -L -o emqx.tar.gz https://github.com/emqx/emqx/releases/download/v5.1.1/emqx-5.1.1-ubuntu22.04-amd64.tar.gz
+mkdir -p emqx
+tar zxf emqx.tar.gz -C emqx
+cat test/emqx.conf >> emqx/etc/emqx.conf
+emqx/bin/emqx start
+```
+
+### Run tests against EMQX
+``` sh
+ctest -R test9000 
+```
+
 ## Impl. details
 
 ### Server URI schema: 'quic://'
+
+### link to [MsQuic](https://github.com/microsoft/msquic)
 
 ### New Macro 'MSQUIC' wraps mqtt over quic code
 
@@ -15,8 +89,8 @@ The flag indicates the current network transport in use is quic.
 
 ### New flag 'quic' in struct **MQTTClient** for sync API
 
-### create /dev/null backed socket for adaption in **networkHandles**
-Socket is used as the index for in the linked list.
+### eventfd backed 'socket' for adaption in **networkHandles**
+Socket is used as the index for networkhandles in a linked list.
 How to map socket to connection/stream?
 
 ### QUIC module: quic.c and quic.h
@@ -119,56 +193,41 @@ Init: in `QUIC_new`
 Destory: in `ConnectionCallback`
 Threads: PAHO recv threads and MsQuic workthreads
 
-## Build
-```
-mkdir _build
-cd _build
-cmake -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_MSQUIC=TRUE -DPAHO_WITH_SSL=TRUE \
--DPAHO_BUILD_SHARED=TRUE -DPAHO_BUILD_SAMPLES=TRUE ../
-cmake --build 
-```
+## What is working
 
-## Debug build with lttng tracing
-```
-mkdir _build
-cd _build
-cmake -DCMAKE_BUILD_TYPE=Debug \
-      -DPAHO_WITH_MSQUIC=TRUE \ 
-      -DPAHO_WITH_SSL=TRUE \
-      -DPAHO_BUILD_SHARED=TRUE \
-      -DPAHO_BUILD_SAMPLES=TRUE \
-      -DPAHO_ENABLE_QUIC_LOGGING=TRUE \
-      ../
-cmake --build 
-```
-## Tests
+1. QUIC handshake works, with verify server, verify client and mTLS, success or failure as it should.
+1. pub/sub works over a single stream
+1. Qos 0, 1, 2 checked
+1. Connection and Stream Teardown.
+1. send/recv large messages.
+1. multiple concurrent clients. (QUIC clients only, Mixed TLS/QUIC clients, untested).
+1. Coexists with TCP/TLS.
+1. Fullstack debug loggings.
+1. pre-master-key export for wireshark decryption. (Cannot be disabled for now).
+1. Github CI in Linux (ubuntu 22.04)
 
-New tests are added in test9000 named after `rfc9000`
+## Limitations
 
-``` sh
-ctest -R test9000 -VV 
-```
-
-## Limitation
-1. Does not support MQTT STATIC link
-1. Async Client API support ONLY
+1. Does not support STATIC link
+1. Only support Async Client
 1. Don't support proxy 
-1. Support single stream, no multistreams
+1. Support single stream, no multistreams for now.
 1. No Windows support
-1. No sync API support
+1. Everthing is async no sync API.
 
-## TODOs
+## TODOs/Known issues
+
 1. call `QUIC_close` in MQTTClient_closeSession
 1. Double check mutex usages.
    All `extern mutex_type` are in `MQTTAsyncUtils.c`
-1. Impl get peer
+1. Impl get peer API.
 1. test9000-2d-mutual-ssl-auth-client-missing-client-cert is too slow
 1. MAYBE SendBuffer
 1. Doc the functions with paho doc styles
 1. [DEFER] Support multi streams
-   PAHO has three threads. (send thread, recv thread )
-   Need some model check if we want to extend to more threads. 
-1. Check all callbacks
+   PAHO has three threads. (send thread, recv thread and the caller thread)
+   Need some model check before we extend it to have more threads. 
+1. [DONE] Checked callbacks
    - onConnect
    - onConnectFailure
    - onSubscribe
