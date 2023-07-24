@@ -1337,7 +1337,7 @@ static int MQTTAsync_processCommand(void)
 			else
 				command->command.details.conn.MQTTVersion = command->client->c->MQTTVersion;
 
-			Log(TRACE_PROTOCOL, -1, "Connecting to serverURI %s with MQTT version %d, proxy %c", serverURI, command->command.details.conn.MQTTVersion,
+			Log(TRACE_PROTOCOL, -1, "Connecting to serverURI %s with MQTT version %d, proxy %s", serverURI, command->command.details.conn.MQTTVersion,
 				command->client->c->httpsProxy);
 #if defined(MSQUIC)
 			rc = MQTTProtocol_connect(serverURI, command->client->c, command->client->quic, command->client->ssl, command->client->websocket,
