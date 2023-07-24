@@ -1,18 +1,15 @@
 /*******************************************************************************
- * Copyright (c) 2012, 2022 IBM Corp., Ian Craggs
+ * Copyright (c) 2023 EMQ Technologies Co., William Yang and others.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
- * and Eclipse Distribution License v1.0 which accompany this distribution. 
+ * and Eclipse Distribution License v1.0 which accompany this distribution.
  *
- * The Eclipse Public License is available at 
- *   https://www.eclipse.org/legal/epl-2.0/
- * and the Eclipse Distribution License is available at 
+ * The Eclipse Public License is available at
+ *    https://www.eclipse.org/legal/epl-2.0/
+ * and the Eclipse Distribution License is available at
  *   http://www.eclipse.org/org/documents/edl-v10.php.
- *
- * Contributors:
- *    Ian Craggs - initial contribution
- *******************************************************************************/
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -140,11 +137,13 @@ int main(int argc, char* argv[])
 	MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
 	MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
 	MQTTAsync_SSLOptions sslopts = MQTTAsync_SSLOptions_initializer;
+	sslopts.enableServerCertAuth = 0; //for simplicity, we don't verify the server certificate
 	int rc;
 	int ch;
 
 	MQTTAsync_setTraceCallback(trace_callback);
 	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_PROTOCOL);
 
 	if ((rc = MQTTAsync_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL))
 			!= MQTTASYNC_SUCCESS)
