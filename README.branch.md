@@ -21,11 +21,13 @@ cmake --build
 
 ## Example Code
 
-[Publish](src/samples/MQTTAsync_quic_publish.c)
-[Subscribe](src/samples/MQTTAsync_quic_subscribe.c)
+For Async Client Publish see: [Publish](src/samples/MQTTAsync_quic_publish.c)
 
- Basicly just compare with the base ones. 
- ```
+For Async Client Subscribe see: [Subscribe](src/samples/MQTTAsync_quic_subscribe.c)
+
+Or just compare with the basic ones
+
+ ``` bash
  diff src/samples/MQTTAsync_quic_subscribe.c  src/samples/MQTTAsync_subscribe.c 
  ```
 
