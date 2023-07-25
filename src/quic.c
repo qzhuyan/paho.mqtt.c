@@ -267,8 +267,10 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
     memcpy(tmpbuf, buf0, buf0len);
     offset = buf0len;
     for(int i=0; i< bufs.count; i++) {
-        memcpy(tmpbuf+offset, bufs.buffers[i], bufs.buflens[i]);
-        offset += bufs.buflens[i];
+        if (bufs.buffers[i] != NULL) {
+            memcpy(tmpbuf+offset, bufs.buffers[i], bufs.buflens[i]);
+            offset += bufs.buflens[i];
+        }
     }
 
     Log(TRACE_MINIMUM, -1, "QUIC_send: %d", len);
