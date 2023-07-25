@@ -45,9 +45,18 @@ cmake -DCMAKE_BUILD_TYPE=Debug \
 cmake --build 
 ```
 
-### Inpsect traffic with wireshark
+### Inpsect traffic with wireshark, requires 4.0.6+
 
-Download supported wireshark from here:
+1. Method 1
+```
+# Start wireshrak and load lua script that supports MQTT over QUIC
+cd test
+wireshark -X lua_script:mqtt_over_quic.lua
+```
+
+1. Method 2
+
+Download&Install supported wireshark from here:
 
 [Wireshark + MQTTOverQUIC](https://emqx-my.sharepoint.com/personal/william_yang_emqx_io/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fwilliam%5Fyang%5Femqx%5Fio%2FDocuments%2FWireshark%2BMQTTOverQUIC%2Fubuntu%2Dpackages&view=0
 )
