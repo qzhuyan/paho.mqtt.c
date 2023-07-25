@@ -309,12 +309,22 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
         {
             HQUIC Registration = q_ctx->Registration;
             Log(TRACE_MINIMUM, -1, "trigger connection shutdown in QUIC_close: %p\n", q_ctx->Connection);
-            q_ctx->shutdown_state = SHUTDOWN_STATE_APP;
-            MsQuic->ConnectionShutdown(q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
-            pthread_mutex_unlock(&q_ctx->mutex);
-            // long blocking, wait for complete clean
-            MsQuic->RegistrationClose(Registration);
-            Log(TRACE_MINIMUM, -1, "registration closed %p\n", q_ctx);
+            if (q_ctx->Stream)
+            {
+                // Gracefully Shutdown control stream
+                // According to protocol, shutdown control stream also means connection shutdown
+                MsQuic->StreamShutdown(q_ctx->Stream, QUIC_STREAM_SHUTDOWN_FLAG_GRACEFUL, reasonCode);
+                pthread_mutex_unlock(&q_ctx->mutex);
+            }
+            else
+            {
+                q_ctx->shutdown_state = SHUTDOWN_STATE_APP;
+                MsQuic->ConnectionShutdown(q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
+                pthread_mutex_unlock(&q_ctx->mutex);
+                // long blocking, wait for complete clean
+                MsQuic->RegistrationClose(Registration);
+                Log(TRACE_MINIMUM, -1, "registration closed %p\n", q_ctx);
+            }
         }
         else if(SHUTDOWN_STATE_STACK == q_ctx->shutdown_state)
         {
@@ -484,6 +494,8 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     net->q_ctx->shutdown_state = SHUTDOWN_STATE_NONE;
     net->socket = eventfd(0, EFD_NONBLOCK);
     net->q_ctx->Socket = net->socket;
+    net->q_ctx->Stream = 0;
+    net->q_ctx->Connection = 0;
     pthread_mutex_init(&net->q_ctx->mutex, 0);
 
     if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &net->q_ctx->Registration))) {
