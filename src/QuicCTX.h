@@ -17,6 +17,9 @@
 #include <msquic.h>
 #include "Socket.h"
 
+
+#define PEER_LEN INET6_ADDRSTRLEN+7
+
 enum shutdown_state {
     SHUTDOWN_STATE_NONE = 0, // No shutdown initiated
     SHUTDOWN_STATE_APP,      // Shutdown initiated by application
@@ -30,6 +33,7 @@ typedef struct QUIC_CTX {
 	HQUIC Connection;         /* MSQUIC Connection Handle */
 	HQUIC Stream;             /* MSQUIC Stream Handle */
     SOCKET Socket;            /* eventfd, index of 'socket' to 'networkhandle' */
+    char peer[PEER_LEN];           /* peer address */
     QUIC_TLS_SECRETS tls_secrets; /* TLS secrets */
     char* recv_buf;           /* buffer to receive data */
     uint32_t recv_buf_size;   /* size of recv_buf */

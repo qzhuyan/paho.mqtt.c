@@ -28,6 +28,8 @@ static void maybe_recv_complete(QUIC_CTX*);
 
 static int QUIC_addSocket(SOCKET newSd);
 
+extern int Socket_addSocket(SOCKET newSd);
+
 /*=================================*/
 /* Global QUIC handles             */
 /*=================================*/
@@ -551,11 +553,45 @@ int QUIC_noPendingWrites(QSOCKET socket)
     FUNC_ENTRY;
     FUNC_EXIT;
 }
-char* QUIC_getpeer(QSOCKET sock)
+
+char* QUIC_getpeer(QUIC_CTX* q_ctx)
 {
     FUNC_ENTRY;
-    // @TODO
+    QUIC_ADDR addr;
+    QUIC_STATUS Status;
+    char ipstr[INET6_ADDRSTRLEN+1] = { 0 };
+    // @NOTE This is actually a cache.
+    char *buffer = q_ctx->peer;
+    uint32_t len = sizeof(QUIC_ADDR);
+    uint16_t port = 0;
+
+    if (!q_ctx)
+    {
+        goto exit;
+    }
+
+    if (QUIC_FAILED(Status = MsQuic->GetParam(q_ctx->Connection,
+                                     QUIC_PARAM_CONN_REMOTE_ADDRESS, &len, &addr)))
+    {
+        Log(LOG_ERROR, -1, "Get Peer failed: %d\n", Status);
+        // we return cached value
+        goto exit;
+    }
+    switch (addr.Ip.sa_family)
+    {
+        case QUIC_ADDRESS_FAMILY_INET6:
+            inet_ntop(AF_INET6, &(addr.Ipv6.sin6_addr), ipstr, INET6_ADDRSTRLEN);
+            port = ntohs(addr.Ipv6.sin6_port);
+            break;
+        default:
+            inet_ntop(AF_INET, &(addr.Ipv4.sin_addr), ipstr, INET_ADDRSTRLEN);
+            port = ntohs(addr.Ipv4.sin_port);
+            break;
+    }
+    snprintf(buffer, PEER_LEN, "%s:%d", ipstr, port);
+exit:
     FUNC_EXIT;
+    return buffer;
 }
 
 void QUIC_addPendingWrite(QSOCKET socket)

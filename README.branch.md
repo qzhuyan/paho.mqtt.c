@@ -231,10 +231,10 @@ Threads: PAHO recv threads and MsQuic workthreads
 1. call `QUIC_close` in MQTTClient_closeSession
 1. Double check mutex usages.
    All `extern mutex_type` are in `MQTTAsyncUtils.c`
-1. Impl get peer API.
-1. test9000-2d-mutual-ssl-auth-client-missing-client-cert is too slow
+
 1. MAYBE SendBuffer
 1. Doc the functions with paho doc styles
+1. 0-RTT support
 1. [DEFER] Support multi streams
    PAHO has three threads. (send thread, recv thread and the caller thread)
    Need some model check before we extend it to have more threads. 
@@ -248,6 +248,8 @@ Threads: PAHO recv threads and MsQuic workthreads
    - onMessageArrived
    - onPublishSuccess
    - onPublishFailure
+   
+1. [DONE] Impl get peer API.
 1. [DONE] QUIC and none QUIC both should use poll
 1. [DONE] Add tests for quic transport
 1. [DONE] TLS configuration

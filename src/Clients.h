@@ -30,7 +30,7 @@
 #if defined(OPENSSL)
 #include <openssl/ssl.h>
 #endif
-#if defined(MSQUIC) && !defined(PAHO_MQTT_STATIC)
+#if defined(MSQUIC)
 #include "QuicCTX.h"
 #endif
 #include "MQTTClient.h"
@@ -168,6 +168,7 @@ typedef struct
 
 int clientIDCompare(void* a, void* b);
 int clientSocketCompare(void* a, void* b);
+char* getpeer(Clients* client);
 
 /**
  * Configuration data related to all clients

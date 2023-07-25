@@ -41,7 +41,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
 
 
 int QUIC_noPendingWrites(QSOCKET socket);
-char* QUIC_getpeer(QSOCKET sock);
+char* QUIC_getpeer(QUIC_CTX* q_ctx);
 
 void QUIC_addPendingWrite(QSOCKET socket);
 void QUIC_clearPendingWrite(QSOCKET socket);
