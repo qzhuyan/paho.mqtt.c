@@ -1119,6 +1119,13 @@ static void MQTTClient_closeSession(Clients* client, enum MQTTReasonCodes reason
 		client->session = NULL; /* show the session has been freed */
 		SSLSocket_close(&client->net);
 #endif
+#if defined(MSQUIC)
+		if (client->net.quic)
+		{
+			QUIC_close(&client->net, 0);
+			client->net.quic = 0;
+		}
+#endif
 		Socket_close(client->net.socket);
 		Thread_unlock_mutex(socket_mutex);
 		client->net.socket = 0;
