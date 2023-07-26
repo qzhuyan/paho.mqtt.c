@@ -498,6 +498,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     net->q_ctx->Socket = net->socket;
     net->q_ctx->Stream = 0;
     net->q_ctx->Connection = 0;
+    net->q_ctx->sslkeylogfile = getenv("SSLKEYLOGFILE");
     pthread_mutex_init(&net->q_ctx->mutex, 0);
 
     if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &net->q_ctx->Registration))) {
@@ -828,7 +829,10 @@ ClientConnectionCallback(
         // The handshake has completed for the connection.
         //
         Log(TRACE_MINIMUM, -1, "[conn][%p] Connected\n", Connection);
-        dump_sslkeylogfile("/tmp/SSLKEYLOGFILE", q_ctx->tls_secrets);
+        if (q_ctx->sslkeylogfile)
+        {
+            dump_sslkeylogfile(q_ctx->sslkeylogfile, q_ctx->tls_secrets);
+        }
         break;
     case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
         //

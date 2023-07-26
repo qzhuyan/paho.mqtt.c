@@ -214,7 +214,7 @@ Threads: PAHO recv threads and MsQuic workthreads
 1. multiple concurrent clients. (QUIC clients only, Mixed TLS/QUIC clients, untested).
 1. Coexists with TCP/TLS.
 1. Fullstack debug loggings.
-1. pre-master-key export for wireshark decryption. (Cannot be disabled for now).
+1. pre-master-key export for wireshark decryption. (set via envvar `SSLKEYLOGFILE`).
 1. Github CI in Linux (ubuntu 22.04)
 
 ## Limitations
