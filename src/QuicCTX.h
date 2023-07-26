@@ -34,8 +34,9 @@ typedef struct QUIC_CTX {
 	HQUIC Stream;             /* MSQUIC Stream Handle */
     SOCKET Socket;            /* eventfd, index of 'socket' to 'networkhandle' */
     char peer[PEER_LEN];           /* peer address */
-    char* sslkeylogfile;  /* SSL key log file */
+    char* sslkeylogfile;      /* SSL key log file */
     QUIC_TLS_SECRETS tls_secrets; /* TLS secrets */
+    QUIC_BUFFER nst;          /* QUIC new session ticket */
     char* recv_buf;           /* buffer to receive data */
     uint32_t recv_buf_size;   /* size of recv_buf */
     uint32_t recv_buf_offset; /* offset of unconsumed data in recv_buf */

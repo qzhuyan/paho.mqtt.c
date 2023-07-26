@@ -339,6 +339,10 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
             }
             // q_ctx->Socket is event socket.
             Socket_close(q_ctx->Socket);
+            free(q_ctx->nst.Buffer);
+            free(q_ctx->recv_buf);
+            q_ctx->nst.Buffer = NULL;
+            q_ctx->recv_buf = NULL;
             pthread_mutex_unlock(&q_ctx->mutex);
             pthread_mutex_destroy(&q_ctx->mutex);
             MsQuic->ConfigurationClose(q_ctx->Configuration);
@@ -499,6 +503,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     net->q_ctx->Stream = 0;
     net->q_ctx->Connection = 0;
     net->q_ctx->sslkeylogfile = getenv("SSLKEYLOGFILE");
+    net->q_ctx->nst.Buffer = NULL;
     pthread_mutex_init(&net->q_ctx->mutex, 0);
 
     if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &net->q_ctx->Registration))) {
@@ -871,13 +876,13 @@ ClientConnectionCallback(
             // Already shutdown by application
             // safe to unlock
             Log(TRACE_MINIMUM, -1, "[conn][%p] Connection already closed by app: %p", Connection, q_ctx);
+            free(q_ctx->recv_buf);
+            free(q_ctx->nst.Buffer);
+            q_ctx->recv_buf = NULL;
+            q_ctx->nst.Buffer = NULL;
             pthread_mutex_unlock(&q_ctx->mutex);
             // App already closed the eventfd. We only need to remove socket from the list
             Socket_close(q_ctx->Socket);
-            if (q_ctx->recv_buf)
-            {
-                free(q_ctx->recv_buf);
-            }
             MsQuic->ConfigurationClose(q_ctx->Configuration);
             // @NOTE never call RegistrationClose from here
             pthread_mutex_destroy(&q_ctx->mutex);
@@ -894,9 +899,14 @@ ClientConnectionCallback(
         // received from the server.
         //
         Log(TRACE_MINIMUM, -1, "[conn][%p] Resumption ticket received (%u bytes):", Connection, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
-        for (uint32_t i = 0; i < Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength; i++) {
-           Log(TRACE_MAXIMUM, -1, "%.2X\n", (uint8_t)Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket[i]);
+        q_ctx->nst.Length = Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength;
+        if (q_ctx->nst.Buffer)
+        {
+            free(q_ctx->nst.Buffer);
         }
+        q_ctx->nst.Buffer = malloc(Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
+        memcpy(q_ctx->nst.Buffer, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket,
+               Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
         break;
     default:
         break;
