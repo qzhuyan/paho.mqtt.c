@@ -2817,8 +2817,7 @@ int test11(struct Options options)
 	opts.will->topicName = "will topic";
 	opts.will = NULL;
 	opts.onSuccess = NULL;  // we use 'connected' callback instead
-	// @TODO
-	//opts.onFailure = test11OnConnectFailure;
+	opts.onFailure = test11OnConnectFailure;
 	opts.context = &tc;
 	//opts.automaticReconnect = 1;
 

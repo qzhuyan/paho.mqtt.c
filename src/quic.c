@@ -112,6 +112,12 @@ int QUIC_getch(QUIC_CTX* q_ctx, char* c)
 {
     FUNC_ENTRY;
     int rc = SOCKET_ERROR;
+    if (!q_ctx)
+    {
+        rc = SOCKETBUFFER_INTERRUPTED;
+        FUNC_EXIT_RC(rc);
+        return rc;
+    }
     if ((rc = SocketBuffer_getQueuedChar(q_ctx->Socket, c)) != SOCKETBUFFER_INTERRUPTED)
     {
         Log(TRACE_MINIMUM, -1, "quic_get_ch %d @ Queue\n", *c);
@@ -302,7 +308,6 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
         // from networkHandles
         // @FIXME: check if thread safe here?
         net->q_ctx = NULL;
-        net->quic = 0;
 
         pthread_mutex_lock(&q_ctx->mutex);
         assert(q_ctx->shutdown_state != SHUTDOWN_STATE_APP);
@@ -1004,15 +1009,17 @@ ClientStreamCallback(
         break;
     case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
         //
-        // The peer gracefully shut down its send direction of the stream.
+        // The peer aborted its send direction of the stream.
         //
         Log(TRACE_MINIMUM, -1, "[strm][%p] Peer aborted\n", Stream);
+        // We abort our send direction as well, but with no error.
+        MsQuic->StreamShutdown(Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
         break;
     case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
         //
-        // The peer aborted its send direction of the stream.
+        // The peer gracefully shut down its send direction of the stream.
         //
-        Log(TRACE_MINIMUM, -1, "[strm][%p] Peer shut down\n", Stream);
+        Log(TRACE_MINIMUM, -1, "[strm][%p] Peer shut down gracefully\n", Stream);
         break;
     case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
         //
@@ -1027,7 +1034,7 @@ ClientStreamCallback(
         // Single stream MODE
         q_ctx->is_closed = TRUE;
 
-        if (TRUE) //(q_ctx->shutdown_state != SHUTDOWN_STATE_APP)
+        if (q_ctx->shutdown_state != SHUTDOWN_STATE_APP)
         {
             if (-1 == write(q_ctx->Socket, &(uint64_t){1}, sizeof(uint64_t)))
             {

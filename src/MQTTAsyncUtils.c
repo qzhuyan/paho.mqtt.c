@@ -190,6 +190,14 @@ static int MQTTAsync_checkConn(MQTTAsync_command* command, MQTTAsyncs* client)
 	FUNC_ENTRY;
 	rc = command->details.conn.currentURI + 1 < client->serverURIcount ||
 		(command->details.conn.MQTTVersion == 4 && client->c->MQTTVersion == MQTTVERSION_DEFAULT);
+
+#if defined(MSQUIC)
+	if (client->quic && client->c->net.q_ctx == NULL)
+	{
+		// No try if quic context is NULL
+		rc = 0;
+	}
+#endif
 	FUNC_EXIT_RC(rc);
 	return rc;
 }
