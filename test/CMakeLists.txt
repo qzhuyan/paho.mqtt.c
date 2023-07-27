@@ -5,6 +5,7 @@ SET(MQTT_WS_TEST_BROKER "ws://localhost:1883" CACHE STRING "WebSocket connection
 SET(MQTT_TEST_PROXY "tcp://localhost:1884" CACHE STRING "Hostname of the test proxy to use")
 SET(MQTT_WS_TEST_PROXY "tcp://localhost:1884" CACHE STRING "WebSocket connection of a test proxy to use")
 SET(MQTT_SSL_HOSTNAME "localhost" CACHE STRING "Hostname of a test SSL MQTT broker to use")
+SET(MQTT_QUIC_TEST_BROKER "quic://localhost:18885" CACHE STRING "Hostname of a test MQTT/QUIC broker to use")
 SET(MQTT_QUIC_HOSTNAME "localhost" CACHE STRING "Hostname of a test QUIC MQTT broker to use")
 
 SET(CERTDIR ${CMAKE_SOURCE_DIR}/test/ssl)
@@ -1373,6 +1374,11 @@ IF (PAHO_WITH_MSQUIC)
             NAME test9000-2e-ssl-with-ha
             COMMAND test9000 "--test_no" "14" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"   "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
         )
+
+        ADD_TEST(
+		    NAME test9000-11-reconnect
+		    COMMAND test9000 "--verbose" "--test_no" "15" "--verbose" "--quic" "--hostname" ${MQTT_QUIC_HOSTNAME} "--client_key"	 "${EMQX_CERTDIR}/client-cert.pem" "--server_key" "${EMQX_CERTDIR}/cacert.pem" "--client_private_key" "${EMQX_CERTDIR}/client-key.pem"
+	    )
 
 		#ADD_TEST(
 		#	NAME test9000-8-psk-ssl-auth

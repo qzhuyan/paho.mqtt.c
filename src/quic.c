@@ -538,6 +538,20 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         goto exit;
     }
 
+    // New session ticket for connection resume
+    if (sslopts->session_ticket_len && sslopts->session_ticket)
+    {
+        if (QUIC_FAILED(Status
+                          = MsQuic->SetParam(net->q_ctx->Connection,
+                                             QUIC_PARAM_CONN_RESUMPTION_TICKET,
+                                             sslopts->session_ticket_len,
+                                             sslopts->session_ticket
+                                             )))
+            {
+                // Optional, just report error
+                Log(LOG_ERROR, -1, "SetParam QUIC_PARAM_CONN_RESUMPTION_TICKET failed, 0x%x!\n", Status);
+            }
+    }
 
     if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection,
                                                 QUIC_STREAM_OPEN_FLAG_NONE,

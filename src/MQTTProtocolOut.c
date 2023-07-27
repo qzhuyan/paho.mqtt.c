@@ -318,7 +318,7 @@ int MQTTProtocol_connect(const char* ip_address, Clients* aClient, int websocket
 		else
 		{
 #if defined(OPENSSL)
-			Log(TRACE_PROTOCOL, -1, "not go quic! ssl : %d", ssl);
+			Log(TRACE_MINIMUM, -1, "not go quic! ssl : %d", ssl);
 #endif
 			rc = Socket_new(ip_address, addr_len, port, &(aClient->net.socket), timeout);
 		}

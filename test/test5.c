@@ -1143,7 +1143,7 @@ int test2d(struct Options options)
 	for (iteration = 0; !failures && (iteration < 20) ; iteration++)
 	{
 		count = 0;
-		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
+		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 
 		rc = MQTTAsync_create(&c, options.mutual_auth_connection,
 				      "test2d", MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
@@ -2059,7 +2059,7 @@ int test6(struct Options options)
 	MyLog(LOGA_INFO, "Starting test 6 - multiple connections");
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
 	global_start_time = start_clock();
-	//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 	for (i = 0; i < num_clients; ++i)
 	{
 		tc[i].maxmsgs = MAXMSGS;
@@ -2327,8 +2327,8 @@ int test7(struct Options options)
 
 	test_finished = failures = 0;
 
-	//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
-	//MQTTAsync_setTraceCallback(handleTrace);
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	MQTTAsync_setTraceCallback(handleTrace);
 
 	MyLog(LOGA_INFO, "Starting test 7 - big messages");
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
@@ -2751,13 +2751,147 @@ int test10(struct Options options)
 	return failures;
 }
 
+/*********************************************************************
+
+ Test11: Session Resumption with session ticket
+
+ *********************************************************************/
+void test11OnConnectFailure(void* context, MQTTAsync_failureData* response)
+{
+	AsyncTestClient* client = (AsyncTestClient*) context;
+	MyLog(LOGA_DEBUG, "In test11OnConnectFailure callback, %s",
+			client->clientid);
+
+	assert("There should be no failures in this test. ", 0, "test11OnConnectFailure callback was called\n", 0);
+	client->testFinished = 1;
+}
+
+void test11OnConnectionLost(void* context, char* cause)
+{
+	AsyncTestClient* client = (AsyncTestClient*) context;
+	MyLog(LOGA_DEBUG, "In test11OnPublishFailure callback, %s",
+			client->clientid);
+
+	assert("Connection should not lost.", 0, "test11OnConnectionLost callback was called \n", 0);
+}
+
+int test11(struct Options options)
+{
+	char* testname = "test11";
+
+	AsyncTestClient tc =
+	AsyncTestClient_initializer;
+	MQTTAsync c;
+	MQTTAsync_connectOptions opts = MQTTAsync_connectOptions_initializer;
+	MQTTAsync_willOptions wopts = MQTTAsync_willOptions_initializer;
+	MQTTAsync_SSLOptions sslopts = MQTTAsync_SSLOptions_initializer;
+	int rc = 0;
+
+	failures = 0;
+	test10Finished = 0;
+	MyLog(LOGA_INFO, "Starting test 11 - dummy CApath");
+	fprintf(xml, "<testcase classname=\"test11\" name=\"%s\"", testname);
+	global_start_time = start_clock();
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
+	MQTTAsync_create(&c, options.mutual_auth_connection, "test11", MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
+	assert("good rc from create", rc == MQTTASYNC_SUCCESS, "rc was %d\n", rc);
+	if (rc != MQTTASYNC_SUCCESS)
+		goto exit;
+
+	tc.client = c;
+	sprintf(tc.clientid, "%s", testname);
+	sprintf(tc.topic, "C client SSL test11");
+	tc.maxmsgs = MAXMSGS;
+	tc.subscribed = 0;
+	tc.testFinished = 0;
+
+	opts.keepAliveInterval = 20;
+	opts.cleansession = 1;
+	opts.username = "testuser";
+	opts.password = "testpassword";
+
+	opts.will = &wopts;
+	opts.will->message = "will message";
+	opts.will->qos = 1;
+	opts.will->retained = 0;
+	opts.will->topicName = "will topic";
+	opts.will = NULL;
+	opts.onSuccess = NULL;  // we use 'connected' callback instead
+	// @TODO
+	//opts.onFailure = test11OnConnectFailure;
+	opts.context = &tc;
+	//opts.automaticReconnect = 1;
+
+	opts.ssl = &sslopts;
+	if (options.server_key_file != NULL)
+		opts.ssl->trustStore = options.server_key_file; /*file of certificates trusted by client*/
+	opts.ssl->keyStore = options.client_key_file; /*file of certificate for client to present to server*/
+	if (options.client_key_pass != NULL)
+		opts.ssl->privateKeyPassword = options.client_key_pass;
+	if (options.client_private_key_file != NULL)
+		opts.ssl->privateKey = options.client_private_key_file;
+
+	//opts.ssl->enabledCipherSuites = "DEFAULT";
+	//opts.ssl->enabledServerCertAuth = 1;
+	opts.ssl->verify = 1;
+	MyLog(LOGA_DEBUG, "enableServerCertAuth %d\n", opts.ssl->enableServerCertAuth);
+	MyLog(LOGA_DEBUG, "verify %d\n", opts.ssl->verify);
+
+	rc = MQTTAsync_setCallbacks(c, &tc, test11OnConnectionLost, asyncTestMessageArrived,
+			asyncTestOnDeliveryComplete);
+	assert("Good rc from setCallbacks", rc == MQTTASYNC_SUCCESS, "rc was %d", rc);
+
+
+	rc = MQTTAsync_setConnected(c, &tc, asyncTestOnConnect);
+	assert("Good rc from setConnected", rc == MQTTASYNC_SUCCESS, "rc was %d ", rc);
+
+	MyLog(LOGA_DEBUG, "Connecting");
+	rc = MQTTAsync_connect(c, &opts);
+	assert("Good rc from connect", rc == MQTTASYNC_SUCCESS, "rc was %d", rc);
+	if (rc != MQTTASYNC_SUCCESS)
+		goto exit;
+
+	while (!tc.testFinished)
+#if defined(_WIN32)
+		Sleep(100);
+#else
+		usleep(10000L);
+#endif
+
+	MyLog(LOGA_DEBUG, "Now reconnecting....");
+	// Rest test context
+	tc.client = c;
+	memset(tc.rcvdmsgs, 0, sizeof(tc.rcvdmsgs));
+	memset(tc.sentmsgs, 0, sizeof(tc.sentmsgs));
+	tc.maxmsgs = MAXMSGS;
+	tc.subscribed = 0;
+	tc.testFinished = 0;
+
+	rc = MQTTAsync_reconnect(tc.client);
+	assert("Good rc from reconnect", rc == MQTTASYNC_SUCCESS, "rc was %d ", rc);
+
+	while (!tc.testFinished)
+#if defined(_WIN32)
+		Sleep(100);
+#else
+		usleep(10000L);
+#endif
+	MyLog(LOGA_DEBUG, "Stopping");
+
+exit: MQTTAsync_destroy(&c);
+	MyLog(LOGA_INFO, "%s: test %s. %d tests run, %d failures.",
+			(failures == 0) ? "passed" : "failed", testname, tests, failures);
+	write_test_result();
+	return failures;
+}
+
 int main(int argc, char** argv)
 {
 	int* numtests = &tests;
 	int rc = 0;
 	int (*tests[])() =
             { NULL, test1, test2a, test2b, test2c, test2d, test3a, test3b, test4, /* test5a,
-			test5b, test5c, */ test6, test7, test8, test9, test10, test2e };
+			test5b, test5c, */ test6, test7, test8, test9, test10, test2e, test11 };
 
 	xml = fopen("TEST-test5.xml", "w");
 	fprintf(xml, "<testsuite name=\"test5\" tests=\"%d\">\n", (int)ARRAY_SIZE(tests) - 1);
