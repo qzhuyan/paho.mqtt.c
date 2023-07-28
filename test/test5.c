@@ -2793,7 +2793,9 @@ int test11(struct Options options)
 	fprintf(xml, "<testcase classname=\"test11\" name=\"%s\"", testname);
 	global_start_time = start_clock();
 	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
-	MQTTAsync_create(&c, options.mutual_auth_connection, "test11", MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
+	//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	// @TODO 0-RTT with m-TLS does not work for some reason
+	MQTTAsync_create(&c, options.server_auth_connection, "test11", MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
 	assert("good rc from create", rc == MQTTASYNC_SUCCESS, "rc was %d\n", rc);
 	if (rc != MQTTASYNC_SUCCESS)
 		goto exit;

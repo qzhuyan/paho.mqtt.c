@@ -28,6 +28,9 @@ enum ZERO_RTT {
     ZERO_RTT_AUTO,
 };
 
+#define QUIC_SOCKET_SUCCESS TCPSOCKET_COMPLETE;
+#define QUIC_SOCKET_ERROR SOCKET_ERROR;
+#define QUIC_SOCKET_INTERRUPTED TCPSOCKET_INTERRUPTED;
 void MSQUIC_initialize(void);
 
 void QUIC_handleInit(int);
@@ -43,7 +46,7 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
 int QUIC_close(networkHandles *net, QUIC_UINT62 reason);
 
 int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, MQTTClient_SSLOptions *sslopts, long timeout);
-
+int QUIC_start_0RTT_connection(QUIC_CTX* q_ctx);
 
 int QUIC_noPendingWrites(QSOCKET socket);
 char* QUIC_getpeer(QUIC_CTX* q_ctx);

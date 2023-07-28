@@ -281,7 +281,10 @@ int QUIC_putdatas(QUIC_CTX* q_ctx, char* buf0, size_t buf0len, PacketBuffers buf
 
     Log(TRACE_MINIMUM, -1, "QUIC_send: %d", len);
 
-    if (QUIC_FAILED(Status = MsQuic->StreamSend(Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer))) {
+    if (QUIC_FAILED(Status = MsQuic->StreamSend(Stream, SendBuffer, 1,
+                                                QUIC_SEND_FLAG_START | QUIC_SEND_FLAG_ALLOW_0_RTT,
+                                                SendBuffer)))
+    {
         Log(TRACE_MINIMUM, -1, "StreamSend failed, 0x%x!\n", Status);
         free(SendBuffer->Buffer);
         free(SendBuffer);
@@ -482,20 +485,18 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
 {
     FUNC_ENTRY;
     QUIC_STATUS Status;
-    char host[QUIC_MAX_SNI_LENGTH] = { 0 };
-
-    // @TODO check return val
-    strncpy(host, addr, addr_len);
-    Log(LOG_ERROR, -1, "QUIC_new: host: %s, port: %d", host, port);
+    int use_0rtt = FALSE;
 
     if (net->q_ctx)
     {
         Log(TRACE_MINIMUM, -1 , "QUIC_new: closing old %p\n", net->q_ctx, net->q_ctx->Socket);
         QUIC_close(net, 9);// @TODO reason code
     }
+
     net->quic = 1;
     net->ssl = 0; //@TODO set at other places?
     net->q_ctx = (QUIC_CTX *) malloc(sizeof(QUIC_CTX));
+    memset(net->q_ctx, 0, sizeof(QUIC_CTX));
     net->q_ctx->recv_buf = NULL;
     net->q_ctx->recv_buf_size = 0;
     net->q_ctx->recv_buf_offset = 0;
@@ -560,6 +561,10 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         goto exit;
     }
 
+    char* host  = (char *)malloc((addr_len + 1) * sizeof(char));
+    strncpy(host, addr, addr_len);
+    host[addr_len] = '\0';
+
     // New session ticket for connection resume
     if (sslopts->zero_rtt && sslopts->session_ticket && sslopts->session_ticket->Buffer)
     {
@@ -573,7 +578,15 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
                 // Optional, just report error
                 Log(LOG_ERROR, -1, "SetParam QUIC_PARAM_CONN_RESUMPTION_TICKET failed, 0x%x!\n", Status);
             }
-        Log(TRACE_MINIMUM, -1, "SetParam QUIC_PARAM_CONN_RESUMPTION_TICKET success: len %d, bytes: %s", sslopts->session_ticket->Length, sslopts->session_ticket->Buffer);
+        else
+        {
+            Log(TRACE_MINIMUM, -1, "SetParam QUIC_PARAM_CONN_RESUMPTION_TICKET success: len %d, bytes: %s",
+                sslopts->session_ticket->Length, sslopts->session_ticket->Buffer);
+            use_0rtt = TRUE;
+            // Save some context for later connection start call
+            net->q_ctx->server_name = host;
+            net->q_ctx->server_port = port;
+        }
     }
 
     if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection,
@@ -592,17 +605,47 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     }
 
 
-    if (QUIC_FAILED(Status = MsQuic->ConnectionStart(net->q_ctx->Connection, net->q_ctx->Configuration,
-                                                     QUIC_ADDRESS_FAMILY_UNSPEC, host, port)))
+    Log(TRACE_MINIMUM, -1, "QUIC_new: host: %s, port: %d", host, port);
+    if ( !use_0rtt )
     {
-        Log(TRACE_MINIMUM, -1, "Start Configuration failed, 0x%x!\n", Status);
-        goto exit;
+        if (QUIC_FAILED(Status = MsQuic->ConnectionStart(net->q_ctx->Connection, net->q_ctx->Configuration,
+                                                         QUIC_ADDRESS_FAMILY_UNSPEC, host, port)))
+        {
+            Log(TRACE_MINIMUM, -1, "Start connection failed, 0x%x!\n", Status);
+            free(host);
+            goto exit;
+        }
+        free(host);
     }
-
+    else
+    {
+        Log(TRACE_MINIMUM, -1, "0-RTT enabled, don't start connecion for now");
+    }
     Status = 0; //success
 exit:
     FUNC_EXIT_RC(Status);
     return Status;
+}
+
+
+int QUIC_start_0RTT_connection(QUIC_CTX *q_ctx)
+{
+    FUNC_ENTRY;
+    QUIC_STATUS Status = 0;
+    int rc = QUIC_SOCKET_SUCCESS;
+    if (QUIC_FAILED(Status = MsQuic->ConnectionStart(
+                        q_ctx->Connection, q_ctx->Configuration,
+                        QUIC_ADDRESS_FAMILY_UNSPEC, q_ctx->server_name,
+                        q_ctx->server_port)))
+    {
+        Log(TRACE_MINIMUM, -1, "Start 0-RTT Connection failed, 0x%x!\n", Status);
+        rc = QUIC_SOCKET_ERROR;
+    }
+    free(q_ctx->server_name);
+    q_ctx->server_name = NULL;
+    q_ctx->server_port = 0;
+    FUNC_EXIT_RC(rc);
+    return rc;
 }
 
 int QUIC_noPendingWrites(QSOCKET socket)

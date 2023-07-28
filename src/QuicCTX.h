@@ -32,6 +32,8 @@ typedef struct QUIC_CTX {
     HQUIC Configuration;      /* MSQUIC Configuration Handle */
 	HQUIC Connection;         /* MSQUIC Connection Handle */
 	HQUIC Stream;             /* MSQUIC Stream Handle */
+    char *server_name;        /* server name for 0-RTT */
+    uint16_t server_port;     /* server port for 0-RTT */
     SOCKET Socket;            /* eventfd, index of 'socket' to 'networkhandle' */
     char peer[PEER_LEN];           /* peer address */
     char* sslkeylogfile;      /* SSL key log file */
