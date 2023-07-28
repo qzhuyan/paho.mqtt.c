@@ -2789,7 +2789,7 @@ int test11(struct Options options)
 
 	failures = 0;
 	test10Finished = 0;
-	MyLog(LOGA_INFO, "Starting test 11 - dummy CApath");
+	MyLog(LOGA_INFO, "Starting test 11 - Reconnect");
 	fprintf(xml, "<testcase classname=\"test11\" name=\"%s\"", testname);
 	global_start_time = start_clock();
 	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
@@ -2829,6 +2829,8 @@ int test11(struct Options options)
 		opts.ssl->privateKeyPassword = options.client_key_pass;
 	if (options.client_private_key_file != NULL)
 		opts.ssl->privateKey = options.client_private_key_file;
+
+	opts.ssl->zero_rtt = 2; //ZERO_RTT_AUTO;
 
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 1;

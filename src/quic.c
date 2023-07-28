@@ -344,9 +344,7 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
             }
             // q_ctx->Socket is event socket.
             Socket_close(q_ctx->Socket);
-            free(q_ctx->nst.Buffer);
             free(q_ctx->recv_buf);
-            q_ctx->nst.Buffer = NULL;
             q_ctx->recv_buf = NULL;
             pthread_mutex_unlock(&q_ctx->mutex);
             pthread_mutex_destroy(&q_ctx->mutex);
@@ -508,7 +506,26 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     net->q_ctx->Stream = 0;
     net->q_ctx->Connection = 0;
     net->q_ctx->sslkeylogfile = getenv("SSLKEYLOGFILE");
-    net->q_ctx->nst.Buffer = NULL;
+    if (sslopts->zero_rtt != ZERO_RTT_DISABLED)
+    {
+        if (!sslopts->session_ticket && sslopts->zero_rtt == ZERO_RTT_AUTO)
+        {
+            sslopts->session_ticket = malloc(sizeof(QUIC_BUFFER));
+            sslopts->session_ticket->Buffer = NULL;
+        }
+        if (!sslopts->session_ticket)
+        {
+            Log(LOG_ERROR, -1, "QUIC_new: failed to set session ticket buffer, \
+                                either not in AUTO mode or OOM\n");
+            goto exit;
+        }
+        net->q_ctx->nst = sslopts->session_ticket;
+    }
+    else
+    {
+        net->q_ctx->nst = NULL;
+    }
+
     pthread_mutex_init(&net->q_ctx->mutex, 0);
 
     if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &net->q_ctx->Registration))) {
@@ -544,18 +561,19 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     }
 
     // New session ticket for connection resume
-    if (sslopts->session_ticket_len && sslopts->session_ticket)
+    if (sslopts->zero_rtt && sslopts->session_ticket && sslopts->session_ticket->Buffer)
     {
         if (QUIC_FAILED(Status
                           = MsQuic->SetParam(net->q_ctx->Connection,
                                              QUIC_PARAM_CONN_RESUMPTION_TICKET,
-                                             sslopts->session_ticket_len,
-                                             sslopts->session_ticket
+                                             sslopts->session_ticket->Length,
+                                             sslopts->session_ticket->Buffer
                                              )))
             {
                 // Optional, just report error
                 Log(LOG_ERROR, -1, "SetParam QUIC_PARAM_CONN_RESUMPTION_TICKET failed, 0x%x!\n", Status);
             }
+        Log(TRACE_MINIMUM, -1, "SetParam QUIC_PARAM_CONN_RESUMPTION_TICKET success: len %d, bytes: %s", sslopts->session_ticket->Length, sslopts->session_ticket->Buffer);
     }
 
     if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection,
@@ -852,7 +870,8 @@ ClientConnectionCallback(
         //
         // The handshake has completed for the connection.
         //
-        Log(TRACE_MINIMUM, -1, "[conn][%p] Connected\n", Connection);
+        Log(TRACE_MINIMUM, -1, "[conn][%p] Connected\n , is resumed: %s",
+            Connection, Event->CONNECTED.SessionResumed?"true":"false");
         if (q_ctx->sslkeylogfile)
         {
             dump_sslkeylogfile(q_ctx->sslkeylogfile, q_ctx->tls_secrets);
@@ -896,9 +915,7 @@ ClientConnectionCallback(
             // safe to unlock
             Log(TRACE_MINIMUM, -1, "[conn][%p] Connection already closed by app: %p", Connection, q_ctx);
             free(q_ctx->recv_buf);
-            free(q_ctx->nst.Buffer);
             q_ctx->recv_buf = NULL;
-            q_ctx->nst.Buffer = NULL;
             pthread_mutex_unlock(&q_ctx->mutex);
             // App already closed the eventfd. We only need to remove socket from the list
             Socket_close(q_ctx->Socket);
@@ -917,15 +934,28 @@ ClientConnectionCallback(
         // A resumption ticket (also called New Session Ticket or NST) was
         // received from the server.
         //
-        Log(TRACE_MINIMUM, -1, "[conn][%p] Resumption ticket received (%u bytes):", Connection, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
-        q_ctx->nst.Length = Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength;
-        if (q_ctx->nst.Buffer)
+        Log(TRACE_MINIMUM, -1, "[conn][%p] Resumption ticket received (%u bytes)",
+            Connection, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
+        if (q_ctx->nst)
         {
-            free(q_ctx->nst.Buffer);
+            QUIC_BUFFER *ticket = q_ctx->nst;
+            if (ticket->Buffer)
+            {
+                free(ticket->Buffer);
+                ticket->Buffer = NULL;
+            }
+            ticket->Buffer = malloc(Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
+            if (!ticket->Buffer)
+            {
+                Log(LOG_ERROR, -1, "Failed to allocate memory for resumption ticket buffer");
+                break;
+            }
+            ticket->Length = Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength;
+            memcpy(ticket->Buffer, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket,
+                   Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
+            Log(TRACE_MINIMUM, -1, "Resumption ticket: updated len: %d ",
+                Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
         }
-        q_ctx->nst.Buffer = malloc(Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
-        memcpy(q_ctx->nst.Buffer, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket,
-               Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength);
         break;
     default:
         break;

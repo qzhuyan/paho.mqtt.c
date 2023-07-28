@@ -126,6 +126,10 @@
 #include "MQTTClientPersistence.h"
 #endif
 
+#if defined(MSQUIC)
+#include "msquic.h"
+#endif
+
 /**
  * Return code: No error. Indicates successful completion of an MQTT client
  * operation.
@@ -779,12 +783,12 @@ typedef struct
 	 */
 	unsigned int protos_len;
 
+	int zero_rtt;
 #if defined(MSQUIC)
 	/**
 	 * Session ticket for TLS session resumption.
 	 */
-	const unsigned char *session_ticket;
-	uint32_t session_ticket_len;
+	QUIC_BUFFER* session_ticket;
 #endif
 } MQTTClient_SSLOptions;
 

@@ -93,6 +93,9 @@
 #endif
 
 #include <stdio.h>
+#if defined(MSQUIC)
+#include "QuicCTX.h"
+#endif
 /*
 /// @endcond
 */
@@ -1176,10 +1179,20 @@ typedef struct
 	 * Exists only if struct_version >= 5
 	 */
 	unsigned int protos_len;
+	int zero_rtt;
+#if defined(MSQUIC)
+	/**
+ 	 * Session ticket for TLS session resumption.
+ 	 */
+	QUIC_BUFFER* session_ticket;
+#endif
 } MQTTAsync_SSLOptions;
 
-#define MQTTAsync_SSLOptions_initializer { {'M', 'Q', 'T', 'S'}, 5, NULL, NULL, NULL, NULL, NULL, 1, MQTT_SSL_VERSION_DEFAULT, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL, 0 }
-
+#if defined(MSQUIC)
+#define MQTTAsync_SSLOptions_initializer { {'M', 'Q', 'T', 'S'}, 5, NULL, NULL, NULL, NULL, NULL, 1, MQTT_SSL_VERSION_DEFAULT, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, NULL}
+#else
+#define MQTTAsync_SSLOptions_initializer { {'M', 'Q', 'T', 'S'}, 5, NULL, NULL, NULL, NULL, NULL, 1, MQTT_SSL_VERSION_DEFAULT, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0}
+#endif
 /** Utility structure where name/value pairs are needed */
 typedef struct
 {

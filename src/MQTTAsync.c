@@ -832,6 +832,13 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 				m->c->sslopts->protos = (const unsigned char*)MQTTStrdup((const char*)options->ssl->protos);
 			m->c->sslopts->protos_len = options->ssl->protos_len;
 		}
+	   if (m->c->sslopts->struct_version >= 0) // @FIXME bump version?
+	   {
+		   m->c->sslopts->zero_rtt = options->ssl->zero_rtt;
+#if defined(MSQUIC)
+		   m->c->sslopts->session_ticket = options->ssl->session_ticket;
+#endif
+	   }
 	}
 #else
 	if (options->struct_version != 0 && options->ssl)

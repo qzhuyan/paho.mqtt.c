@@ -22,6 +22,11 @@
 
 typedef HQUIC QSOCKET;
 
+enum ZERO_RTT {
+    ZERO_RTT_DISABLED = 0,
+    ZERO_RTT_ENABLED,
+    ZERO_RTT_AUTO,
+};
 
 void MSQUIC_initialize(void);
 
