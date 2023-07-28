@@ -1143,7 +1143,7 @@ int test2d(struct Options options)
 	for (iteration = 0; !failures && (iteration < 20) ; iteration++)
 	{
 		count = 0;
-		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+		MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
 
 		rc = MQTTAsync_create(&c, options.mutual_auth_connection,
 				      "test2d", MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
@@ -2059,7 +2059,7 @@ int test6(struct Options options)
 	MyLog(LOGA_INFO, "Starting test 6 - multiple connections");
 	fprintf(xml, "<testcase classname=\"test5\" name=\"%s\"", testname);
 	global_start_time = start_clock();
-	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
 	for (i = 0; i < num_clients; ++i)
 	{
 		tc[i].maxmsgs = MAXMSGS;
@@ -2327,7 +2327,7 @@ int test7(struct Options options)
 
 	test_finished = failures = 0;
 
-	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
+	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
 	MQTTAsync_setTraceCallback(handleTrace);
 
 	MyLog(LOGA_INFO, "Starting test 7 - big messages");
