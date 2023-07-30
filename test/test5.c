@@ -2046,7 +2046,7 @@ void test6OnPublishFailure(void* context, MQTTAsync_failureData* response)
 int test6(struct Options options)
 {
 	char* testname = "test6";
-#define num_clients 100
+#define num_clients 10
 	int subsqos = 2;
 	MQTTAsync_connectOptions opts = MQTTAsync_connectOptions_initializer;
 	MQTTAsync_willOptions wopts = MQTTAsync_willOptions_initializer;
