@@ -72,7 +72,9 @@ INSTALL(TARGETS paho_c_sub
                 paho_cs_sub
                 paho_cs_pub
                 MQTTAsync_subscribe
+                MQTTAsync_quic_subscribe
 	              MQTTAsync_publish
+                  MQTTAsync_quic_publish
 	              MQTTAsync_publish_time
                 MQTTClient_subscribe
                 MQTTClient_publish
