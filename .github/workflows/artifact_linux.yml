@@ -3,7 +3,12 @@ on: [workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        quic:
+          - quic
+          - noquic
     steps:
       - name: Check out code
         uses: actions/checkout@v2
@@ -17,7 +22,12 @@ jobs:
           mkdir build.paho
           cd build.paho
           echo "pwd $PWD"
-          cmake -DPAHO_BUILD_STATIC=FALSE -DPAHO_BUILD_SHARED=TRUE -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_SSL=TRUE -DOPENSSL_ROOT_DIR= -DPAHO_BUILD_DOCUMENTATION=FALSE -DPAHO_BUILD_SAMPLES=TRUE -DPAHO_HIGH_PERFORMANCE=TRUE ..
+          WithQuic=FALSE
+          if [[ ${{ matrix.quic }} == "quic" ]];
+          then
+          WithQuic=TRUE
+          fi
+          cmake -DPAHO_BUILD_STATIC=FALSE -DPAHO_BUILD_SHARED=TRUE -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_SSL=TRUE -DOPENSSL_ROOT_DIR= -DPAHO_BUILD_DOCUMENTATION=FALSE -DPAHO_BUILD_SAMPLES=TRUE -DPAHO_HIGH_PERFORMANCE=TRUE -DPAHO_WITH_MSQUIC="${WithQuic}" ..
           cmake --build .
       - name: package
         run: |
@@ -26,5 +36,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: Eclipse-Paho-MQTT-C-1.3.12-Linux.tar.gz
-          path: /home/runner/work/paho.mqtt.c/paho.mqtt.c/build.paho/Eclipse-Paho-MQTT-C-1.3.12-Linux.tar.gz
+          name: Eclipse-Paho-MQTT-C-1.3.12-${{ matrix.quic }}-Linux.tar.gz
+          path:   /home/runner/work/paho.mqtt.c/paho.mqtt.c/build.paho/Eclipse-Paho-MQTT-C-1.3.12-Linux.tar.gz
