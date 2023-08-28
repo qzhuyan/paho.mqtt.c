@@ -216,26 +216,28 @@ Threads: PAHO recv threads and MsQuic workthreads
 1. Fullstack debug loggings.
 1. pre-master-key export for wireshark decryption. (set via envvar `SSLKEYLOGFILE`).
 1. Github CI in Linux (ubuntu 22.04)
+1. Release with doc with/without quic for ubuntu20.04
 
 ## Limitations
 
 1. Does not support STATIC link
-1. Only support Async Client
-1. Don't support proxy 
-1. Support single stream, no multistreams for now.
-1. No Windows support
-1. Everthing is async no sync API.
+1. Only support Async Client as we don't see the needs for sync API
+1. Don't support QUIC proxy 
+1. Only single stream, no multistreams for now.
+1. Everthing is async.
+1. No Windows support.
 
 ## TODOs/Known issues
 
 1. Double check mutex usages.
    All `extern mutex_type` are in `MQTTAsyncUtils.c`
-1. Doc the functions with paho doc styles
-1. 0-RTT support
 1. [DEFER] Maybe SendBuffer
 1. [DEFER] Support multi streams
    PAHO has three threads. (send thread, recv thread and the caller thread)
-   Need some model check before we extend it to have more threads. 
+   Need some model check before we extend it to have more threads.
+1. [DONE] release with build variants
+1. [DONE] Doc the API with paho doc styles
+1. [DONE] 0-RTT support    
 1. [DONE] Checked callbacks
    - onConnect
    - onConnectFailure
