@@ -38,6 +38,10 @@
 
 size_t MQTTProtocol_addressPort(const char* uri, int* port, const char **topic, int default_port);
 void MQTTProtocol_reconnect(const char* ip_address, Clients* client);
+#if defined(MSQUIC)
+int MQTTProtocol_connect(const char* ip_address, Clients* acClients, int quic, int ssl, int websocket, int MQTTVersion,
+		MQTTProperties* connectProperties, MQTTProperties* willProperties, long timeout);
+#else // NOT MSQUIC
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
 int MQTTProtocol_connect(const char* ip_address, Clients* acClients, int ssl, int websocket, int MQTTVersion,
@@ -46,13 +50,14 @@ int MQTTProtocol_connect(const char* ip_address, Clients* acClients, int ssl, in
 int MQTTProtocol_connect(const char* ip_address, Clients* acClients, int ssl, int websocket, int MQTTVersion,
 		MQTTProperties* connectProperties, MQTTProperties* willProperties);
 #endif
-#else
+#else // NOT MSQUIC AND NOT OPENSSL
 #if defined(__GNUC__) && defined(__linux__)
 int MQTTProtocol_connect(const char* ip_address, Clients* acClients, int websocket, int MQTTVersion,
 		MQTTProperties* connectProperties, MQTTProperties* willProperties, long timeout);
 #else
 int MQTTProtocol_connect(const char* ip_address, Clients* acClients, int websocket, int MQTTVersion,
 		MQTTProperties* connectProperties, MQTTProperties* willProperties);
+#endif
 #endif
 #endif
 int MQTTProtocol_handlePingresps(void* pack, SOCKET sock);

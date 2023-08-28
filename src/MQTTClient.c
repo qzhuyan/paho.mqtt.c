@@ -74,6 +74,10 @@
 #define URI_MQTTS "mqtts://"
 #endif
 
+#if defined(MSQUIC)
+#define URI_QUIC  "quic://"
+#endif
+
 #include "OsWrapper.h"
 
 #define URI_TCP  "tcp://"
@@ -311,6 +315,9 @@ typedef struct
 #if defined(OPENSSL)
 	int ssl;
 #endif
+#if defined(MSQUIC)
+	int quic;
+#endif
 	int websocket;
 	Clients* c;
 	MQTTClient_connectionLost* cl;
@@ -417,6 +424,9 @@ int MQTTClient_createWithOptions(MQTTClient* handle, const char* serverURI, cons
          && strncmp(URI_SSL, serverURI, strlen(URI_SSL)) != 0
          && strncmp(URI_MQTTS, serverURI, strlen(URI_MQTTS)) != 0
 		 && strncmp(URI_WSS, serverURI, strlen(URI_WSS)) != 0
+#endif
+#if defined(MSQUIC)
+		&& strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) != 0
 #endif
 			)
 		{
@@ -1109,6 +1119,13 @@ static void MQTTClient_closeSession(Clients* client, enum MQTTReasonCodes reason
 		client->session = NULL; /* show the session has been freed */
 		SSLSocket_close(&client->net);
 #endif
+#if defined(MSQUIC)
+		if (client->net.quic)
+		{
+			QUIC_close(&client->net, 0);
+			client->net.quic = 0;
+		}
+#endif
 		Socket_close(client->net.socket);
 		Thread_unlock_mutex(socket_mutex);
 		client->net.socket = 0;
@@ -1234,6 +1251,11 @@ static MQTTResponse MQTTClient_connectURIVersion(MQTTClient handle, MQTTClient_c
 	}
 
 	Log(TRACE_MIN, -1, "Connecting to serverURI %s with MQTT version %d", serverURI, MQTTVersion);
+#if defined(MSQUIC)								\
+	    // call MQTTProtocol_connect, quic variant
+		rc = MQTTProtocol_connect(serverURI, m->c, m->quic, m->ssl, m->websocket, MQTTVersion, connectProperties, willProperties,
+			millisecsTimeout - MQTTTime_elapsed(start));
+#else
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
 	rc = MQTTProtocol_connect(serverURI, m->c, m->ssl, m->websocket, MQTTVersion, connectProperties, willProperties,
@@ -1247,6 +1269,7 @@ static MQTTResponse MQTTClient_connectURIVersion(MQTTClient handle, MQTTClient_c
 			millisecsTimeout - MQTTTime_elapsed(start));
 #else
 	rc = MQTTProtocol_connect(serverURI, m->c, m->websocket, MQTTVersion, connectProperties, willProperties);
+#endif
 #endif
 #endif
 	if (rc == SOCKET_ERROR)
@@ -1416,7 +1439,8 @@ static MQTTResponse MQTTClient_connectURIVersion(MQTTClient handle, MQTTClient_c
 	{
 		MQTTPacket* pack = NULL;
 		Thread_unlock_mutex(mqttclient_mutex);
-		pack = MQTTClient_waitfor(handle, CONNACK, &rc, millisecsTimeout - MQTTTime_elapsed(start));
+		int64_t timeout = millisecsTimeout - MQTTTime_elapsed(start);
+		pack = MQTTClient_waitfor(handle, CONNACK, &rc, timeout);
 		Thread_lock_mutex(mqttclient_mutex);
 		if (pack == NULL)
 			rc = SOCKET_ERROR;
@@ -1881,6 +1905,13 @@ MQTTResponse MQTTClient_connectAll(MQTTClient handle, MQTTClient_connectOptions*
 				m->websocket = 1;
 			}
 #endif
+#if defined(MSQUIC)
+			else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
+			{
+				serverURI += strlen(URI_QUIC);
+				m->quic = 1;
+			}
+#endif //QUIC
 			rc = MQTTClient_connectURI(handle, options, serverURI, connectProperties, willProperties);
 			if (rc.reasonCode == MQTTREASONCODE_SUCCESS)
 				break;

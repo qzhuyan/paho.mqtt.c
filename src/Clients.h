@@ -30,6 +30,9 @@
 #if defined(OPENSSL)
 #include <openssl/ssl.h>
 #endif
+#if defined(MSQUIC)
+#include "QuicCTX.h"
+#endif
 #include "MQTTClient.h"
 #include "LinkedList.h"
 #include "MQTTClientPersistence.h"
@@ -88,6 +91,10 @@ typedef struct
 	char *https_proxy;
 	char *https_proxy_auth;
 #endif
+#if defined(MSQUIC)
+	BOOLEAN quic; // isFlag
+	QUIC_CTX* q_ctx;
+#endif
 	char *http_proxy;
 	char *http_proxy_auth;
 	int websocket; /**< socket has been upgraded to use web sockets */
@@ -99,7 +106,7 @@ typedef struct
 /* connection states */
 /** no connection in progress, see connected value */
 #define NOT_IN_PROGRESS  0x0
-/** TCP connection in progress */
+/** TCP connection in progress (NONBLOCKING) */
 #define TCP_IN_PROGRESS  0x1
 /** SSL connection in progress */
 #define SSL_IN_PROGRESS  0x2
@@ -157,10 +164,14 @@ typedef struct
 	MQTTClient_SSLOptions *sslopts; /**< the SSL/TLS connect options */
 	SSL_SESSION* session;           /**< SSL session pointer for fast handhake */
 #endif
+#if defined(MSQUIC)
+	QUIC_BUFFER* session_ticket;    /**< QUIC session ticket for 0-RTT handshake */
+#endif
 } Clients;
 
 int clientIDCompare(void* a, void* b);
 int clientSocketCompare(void* a, void* b);
+char* getpeer(Clients* client);
 
 /**
  * Configuration data related to all clients

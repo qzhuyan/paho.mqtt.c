@@ -44,6 +44,7 @@ ENDIF()
 
 ## build options
 SET(PAHO_WITH_SSL FALSE CACHE BOOL "Flag that defines whether to build ssl-enabled binaries too. ")
+SET(PAHO_WITH_MSQUIC FALSE CACHE BOOL "Flag that defines whether to enable QUIC support. ")
 SET(PAHO_BUILD_SHARED TRUE CACHE BOOL "Build shared library")
 SET(PAHO_BUILD_STATIC FALSE CACHE BOOL "Build static library")
 SET(PAHO_BUILD_DOCUMENTATION FALSE CACHE BOOL "Create and install the HTML based API documentation (requires Doxygen)")
@@ -51,6 +52,7 @@ SET(PAHO_BUILD_SAMPLES FALSE CACHE BOOL "Build sample programs")
 SET(PAHO_BUILD_DEB_PACKAGE FALSE CACHE BOOL "Build debian package")
 SET(PAHO_ENABLE_TESTING TRUE CACHE BOOL "Build tests and run")
 SET(PAHO_ENABLE_CPACK TRUE CACHE BOOL "Enable CPack")
+SET(PAHO_ENABLE_QUIC_LOGGING FALSE CACHE BOOL "Enable QUIC logging, requires lttng")
 SET(PAHO_HIGH_PERFORMANCE FALSE CACHE BOOL "Disable tracing and heap tracking")
 SET(PAHO_USE_SELECT FALSE CACHE BOOL "Revert to select system call instead of poll")
 
@@ -88,7 +90,14 @@ IF (PAHO_ENABLE_CPACK)
 
     SET(CPACK_PACKAGE_VENDOR "Eclipse Paho")
     SET(CPACK_PACKAGE_NAME "Eclipse-Paho-MQTT-C")
-    INSTALL(FILES CONTRIBUTING.md epl-v20 edl-v10 README.md notice.html DESTINATION ${CMAKE_INSTALL_DOCDIR})
+
+    IF (PAHO_WITH_MSQUIC)
+        SET(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-quic")
+    ENDIF()
+
+    IF (PAHO_BUILD_DOCUMENTATION)
+        SET(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-doc")
+    ENDIF()
 
     IF (WIN32)
         SET(CPACK_GENERATOR "ZIP")
