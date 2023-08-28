@@ -11,7 +11,7 @@
  *   http://www.eclipse.org/org/documents/edl-v10.php.
 */
 #include "StackTrace.h"
-#include "quic.h"
+#include "Quic.h"
 #include "SocketBuffer.h"
 #include "Log.h"
 

@@ -23,7 +23,7 @@
 
 #include "Socket.h"
 #if defined(MSQUIC)
-#include "quic.h"
+#include "Quic.h"
 #endif
 #if defined(OPENSSL)
 #include "SSLSocket.h"

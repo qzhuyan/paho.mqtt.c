@@ -104,7 +104,7 @@ The flag indicates the current network transport in use is quic.
 Socket is used as the index for networkhandles in a linked list.
 How to map socket to connection/stream?
 
-### QUIC module: quic.c and quic.h
+### QUIC module: Quic.c and Quic.h
 
 #### Functions
 

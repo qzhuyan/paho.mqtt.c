@@ -81,7 +81,7 @@
 #endif
 
 #if defined(MSQUIC)
-#include "quic.h"
+#include "Quic.h"
 #endif /* MSQUIC */
 
 #if defined(OPENSSL)

@@ -75,7 +75,7 @@
 #endif
 
 #if defined(MSQUIC)
-#define URI_QUIC  "QUIC://"
+#define URI_QUIC  "quic://"
 #endif
 
 #include "OsWrapper.h"
