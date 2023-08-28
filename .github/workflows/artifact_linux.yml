@@ -9,6 +9,9 @@ jobs:
         quic:
           - quic
           - noquic
+        doc:
+          - TRUE
+          - FALSE
     steps:
       - name: Check out code
         uses: actions/checkout@v2
@@ -27,7 +30,7 @@ jobs:
           then
           WithQuic=TRUE
           fi
-          cmake -DPAHO_BUILD_STATIC=FALSE -DPAHO_BUILD_SHARED=TRUE -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_SSL=TRUE -DOPENSSL_ROOT_DIR= -DPAHO_BUILD_DOCUMENTATION=FALSE -DPAHO_BUILD_SAMPLES=TRUE -DPAHO_HIGH_PERFORMANCE=TRUE -DPAHO_WITH_MSQUIC="${WithQuic}" ..
+          cmake -DPAHO_BUILD_STATIC=FALSE -DPAHO_BUILD_SHARED=TRUE -DCMAKE_BUILD_TYPE=Debug -DPAHO_WITH_SSL=TRUE -DOPENSSL_ROOT_DIR= -DPAHO_BUILD_DOCUMENTATION=FALSE -DPAHO_BUILD_SAMPLES=TRUE -DPAHO_HIGH_PERFORMANCE=TRUE -DPAHO_BUILD_DOCUMENTATION="${{ matrix.doc }}" -DPAHO_WITH_MSQUIC="${WithQuic} " ..
           cmake --build .
       - name: package
         run: |
