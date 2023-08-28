@@ -38,7 +38,7 @@ Or just compare with the basic ones
 mkdir _build
 cd _build
 cmake -DCMAKE_BUILD_TYPE=Debug \
-      -DPAHO_WITH_MSQUIC=TRUE \ 
+      -DPAHO_WITH_MSQUIC=TRUE \
       -DPAHO_WITH_SSL=TRUE \
       -DPAHO_BUILD_SHARED=TRUE \
       -DPAHO_BUILD_SAMPLES=TRUE \

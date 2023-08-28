@@ -925,7 +925,9 @@ LIBMQTT_API int MQTTAsync_reconnect(MQTTAsync handle);
  * <br>
  * @em wss:// - Secure web sockets
  * <br>
- * The TLS enabled prefixes (ssl, mqtts, wss) are only valid if a TLS
+ * @em quic:// - MQTTS over QUIC
+ * <br>
+ * The TLS enabled prefixes (ssl, mqtts, wss, quic) are only valid if a TLS
  * version of the library is linked with.
  * For <i>host</i>, you can specify either an IP address or a host name. For
  * instance, to connect to a server running on the local machines with the
@@ -1179,11 +1181,21 @@ typedef struct
 	 * Exists only if struct_version >= 5
 	 */
 	unsigned int protos_len;
+
+    /**
+	 * QUIC zero_rtt support.
+	 * - ZERO_RTT_DISABLED:  Zero-RTT is disabled. Session ticket is not used.
+	 * - ZERO_RTT_ENABLED: Zero-RTT is enalbed. Session ticket is used.
+	 * - ZERO_RTT_AUTO:  Zero-RTT in automode. Use session ticket when available.
+	 * @see session_ticket
+	 */
 	int zero_rtt;
+
 #if defined(MSQUIC)
 	/**
- 	 * Session ticket for TLS session resumption.
- 	 */
+	 * QUIC Session ticket for TLS session resumption.
+	 * @see zero_rtt
+	 */
 	QUIC_BUFFER* session_ticket;
 #endif
 } MQTTAsync_SSLOptions;
