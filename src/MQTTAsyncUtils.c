@@ -2511,6 +2511,7 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 		client->net.ssl = NULL;
 	}
 #endif
+		MQTTAsync_unlock_mutex(socket_mutex);
 	}
 	client->connected = 0;
 	client->connect_state = NOT_IN_PROGRESS;
