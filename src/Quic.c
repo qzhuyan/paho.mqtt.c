@@ -331,9 +331,6 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
                 q_ctx->shutdown_state = SHUTDOWN_STATE_APP;
                 MsQuic->ConnectionShutdown(q_ctx->Connection, QUIC_CONNECTION_SHUTDOWN_FLAG_NONE, reasonCode);
                 pthread_mutex_unlock(&q_ctx->mutex);
-                // long blocking, wait for complete clean
-                MsQuic->RegistrationClose(Registration);
-                Log(TRACE_MINIMUM, -1, "registration closed %p\n", q_ctx);
             }
         }
         else if(SHUTDOWN_STATE_STACK == q_ctx->shutdown_state)
@@ -883,6 +880,7 @@ ClientLoadConfiguration(
     //
     if (QUIC_FAILED(Status = MsQuic->ConfigurationLoadCredential(q_ctx->Configuration, &CredConfig))) {
         Log(TRACE_MINIMUM, -1, "ConfigurationLoadCredential failed, 0x%x!\n", Status);
+        MsQuic->ConfigurationClose(q_ctx->Configuration);
         free(CredConfig.CertificateFile);
         FUNC_EXIT;
         return FALSE;
