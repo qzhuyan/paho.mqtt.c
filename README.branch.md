@@ -71,13 +71,24 @@ New tests are added in test9000 named after `rfc9000`.
 You need to start a EMQX broker with configuration written for this test env.
 take a look in [test/emqx.conf](test/emqx.conf).
 
-### Start EMQX broker. 
+### Start EMQX broker.
+
+#### with EMQX zip release file
 ```sh
 curl -L -o emqx.tar.gz https://github.com/emqx/emqx/releases/download/v5.1.1/emqx-5.1.1-ubuntu22.04-amd64.tar.gz
 mkdir -p emqx
 tar zxf emqx.tar.gz -C emqx
 cat test/emqx.conf >> emqx/etc/emqx.conf
 emqx/bin/emqx start
+```
+
+#### with EMQX docker image
+
+```sh
+ docker run -it --name emqx -p 8883:8883 \
+ -p 14567:14567/udp -p 18883:18883/udp -p 18886:18886/udp -p 18884:18884/udp -p 18885:18885/udp \
+ -v `pwd`/test/emqx.conf:/opt/emqx/etc/emqx.conf \
+ emqx/emqx:5.8.4
 ```
 
 ### Run tests against EMQX
