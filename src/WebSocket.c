@@ -84,6 +84,10 @@
 #  endif
 #endif
 
+#if defined(MSQUIC)
+#include "Quic.h"
+#endif /* MSQUIC */
+
 #if defined(OPENSSL)
 #include "SSLSocket.h"
 #include <openssl/rand.h>
@@ -634,6 +638,12 @@ int WebSocket_getch(networkHandles *net, char* c)
 			rc = TCPSOCKET_COMPLETE;
 		}
 	}
+#if defined(MSQUIC)
+	else if ( net->quic )
+	{
+		rc = QUIC_getch(net->q_ctx, c);
+	}
+#endif
 #if defined(OPENSSL)
 	else if ( net->ssl )
 		rc = SSLSocket_getch(net->ssl, net->socket, c);
@@ -756,6 +766,12 @@ char *WebSocket_getdata(networkHandles *net, size_t bytes, size_t* actual_len)
 			}
 		}
 	}
+#if defined(MSQUIC)
+	else if (net->q_ctx)
+	{
+		rv = QUIC_getdata(net->q_ctx, bytes, actual_len, &rc);
+	}
+#endif
 #if defined(OPENSSL)
 	else if ( net->ssl )
 		rv = SSLSocket_getdata(net->ssl, net->socket, bytes, actual_len, &rc);
@@ -992,6 +1008,11 @@ int WebSocket_putdatas(networkHandles* net, char** buf0, size_t* buf0len, Packet
 	}
 	else
 	{
+#if defined(MSQUIC)
+		if (net->quic)
+			rc = QUIC_putdatas(net->q_ctx, *buf0, *buf0len, *bufs);
+		else
+#endif
 #if defined(OPENSSL)
 		if (net->ssl)
 			rc = SSLSocket_putdatas(net->ssl, net->socket, *buf0, *buf0len, *bufs);
@@ -1325,6 +1346,9 @@ void WebSocket_terminate( void )
 	Socket_outTerminate();
 #if defined(OPENSSL)
 	SSLSocket_terminate();
+#endif
+#if defined(MSQUIC)
+	QUIC_outTerminate();
 #endif
 	FUNC_EXIT;
 }

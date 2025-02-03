@@ -115,6 +115,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdint.h>
 /*
 /// @endcond
 */
@@ -128,6 +129,10 @@
 #include "MQTTClientPersistence.h"
 #else
 #define MQTTCLIENT_PERSISTENCE_NONE 1
+#endif
+
+#if defined(MSQUIC)
+#include "msquic.h"
 #endif
 
 /**
@@ -783,6 +788,14 @@ typedef struct
 	 * Exists only if struct_version >= 5
 	 */
 	unsigned int protos_len;
+
+	int zero_rtt;
+#if defined(MSQUIC)
+	/**
+	 * Session ticket for TLS session resumption.
+	 */
+	QUIC_BUFFER* session_ticket;
+#endif
 } MQTTClient_SSLOptions;
 
 #define MQTTClient_SSLOptions_initializer { {'M', 'Q', 'T', 'S'}, 5, NULL, NULL, NULL, NULL, NULL, 1, MQTT_SSL_VERSION_DEFAULT, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL, 0 }

@@ -96,6 +96,9 @@
 #endif
 
 #include <stdio.h>
+#if defined(MSQUIC)
+#include "QuicCTX.h"
+#endif
 /*
 /// @endcond
 */
@@ -241,6 +244,8 @@ typedef struct
 	int struct_version;
 	/** 1 = we do openssl init, 0 = leave it to the application */
 	int do_openssl_init;
+	/** 1 = we do msquic init, 0 = leave it to the application */
+	int do_msquic_init; //@TODO: not implemented yet
 } MQTTAsync_init_options;
 
 #define MQTTAsync_init_options_initializer { {'M', 'Q', 'T', 'G'}, 0, 0 }
@@ -924,7 +929,9 @@ LIBMQTT_API int MQTTAsync_reconnect(MQTTAsync handle);
  * <br>
  * @em wss:// - Secure web sockets
  * <br>
- * The TLS enabled prefixes (ssl, mqtts, wss) are only valid if a TLS
+ * @em quic:// - MQTTS over QUIC
+ * <br>
+ * The TLS enabled prefixes (ssl, mqtts, wss, quic) are only valid if a TLS
  * version of the library is linked with.
  * For <i>host</i>, you can specify either an IP address or a host name. For
  * instance, to connect to a server running on the local machines with the
@@ -1178,10 +1185,30 @@ typedef struct
 	 * Exists only if struct_version >= 5
 	 */
 	unsigned int protos_len;
+
+    /**
+	 * QUIC zero_rtt support.
+	 * - ZERO_RTT_DISABLED:  Zero-RTT is disabled. Session ticket is not used.
+	 * - ZERO_RTT_ENABLED: Zero-RTT is enalbed. Session ticket is used.
+	 * - ZERO_RTT_AUTO:  Zero-RTT in automode. Use session ticket when available.
+	 * @see session_ticket
+	 */
+	int zero_rtt;
+
+#if defined(MSQUIC)
+	/**
+	 * QUIC Session ticket for TLS session resumption.
+	 * @see zero_rtt
+	 */
+	QUIC_BUFFER* session_ticket;
+#endif
 } MQTTAsync_SSLOptions;
 
-#define MQTTAsync_SSLOptions_initializer { {'M', 'Q', 'T', 'S'}, 5, NULL, NULL, NULL, NULL, NULL, 1, MQTT_SSL_VERSION_DEFAULT, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL, 0 }
-
+#if defined(MSQUIC)
+#define MQTTAsync_SSLOptions_initializer { {'M', 'Q', 'T', 'S'}, 5, NULL, NULL, NULL, NULL, NULL, 1, MQTT_SSL_VERSION_DEFAULT, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, NULL}
+#else
+#define MQTTAsync_SSLOptions_initializer { {'M', 'Q', 'T', 'S'}, 5, NULL, NULL, NULL, NULL, NULL, 1, MQTT_SSL_VERSION_DEFAULT, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0}
+#endif
 /** Utility structure where name/value pairs are needed */
 typedef struct
 {

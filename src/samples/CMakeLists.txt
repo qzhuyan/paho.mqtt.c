@@ -39,7 +39,6 @@ if(PAHO_BUILD_SHARED)
 
     target_link_libraries(paho_c_pub paho-mqtt3as)
     target_link_libraries(paho_c_sub paho-mqtt3as)
-
     target_link_libraries(paho_cs_pub paho-mqtt3cs)
     target_link_libraries(paho_cs_sub paho-mqtt3cs)
 
@@ -59,6 +58,8 @@ if(PAHO_BUILD_SHARED)
     MQTTAsync_subscribe
     MQTTAsync_publish
     MQTTAsync_publish_time
+    MQTTAsync_quic_subscribe
+    MQTTAsync_quic_publish
     MQTTClient_subscribe
     MQTTClient_publish
     MQTTClient_publish_async
@@ -69,7 +70,7 @@ if(PAHO_BUILD_SHARED)
   )
   endforeach()
 
-  foreach(TARGET MQTTAsync_subscribe MQTTAsync_publish MQTTAsync_publish_time)
+  foreach(TARGET MQTTAsync_subscribe MQTTAsync_publish MQTTAsync_publish_time MQTTAsync_quic_subscribe MQTTAsync_quic_publish)
     target_link_libraries(${TARGET} paho-mqtt3a)
   endforeach()
 
@@ -85,6 +86,8 @@ if(PAHO_BUILD_SHARED)
       MQTTClient_subscribe
       MQTTClient_publish
       MQTTClient_publish_async
+      MQTTAsync_quic_subscribe
+      MQTTAsync_quic_publish
 
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

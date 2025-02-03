@@ -54,6 +54,7 @@ endif()
 ## build options
 option(PAHO_WITH_SSL "Flag that defines whether to build ssl-enabled binaries too. " FALSE)
 option(PAHO_WITH_LIBRESSL "Flag that defines whether to build ssl-enabled binaries with LibreSSL instead of OpenSSL. " FALSE)
+option(PAHO_WITH_MSQUIC "Flag that defines whether to enable QUIC support. " FALSE)
 option(PAHO_WITH_LIBUUID "Flag that defines whether libuuid or a custom uuid implementation should be used" FALSE)
 option(PAHO_BUILD_SHARED "Build shared library" TRUE)
 option(PAHO_BUILD_STATIC "Build static library" FALSE)
@@ -116,6 +117,11 @@ if(PAHO_ENABLE_CPACK)
 
   set(CPACK_PACKAGE_VENDOR "Eclipse Paho")
   set(CPACK_PACKAGE_NAME "Eclipse-Paho-MQTT-C")
+
+  IF (PAHO_WITH_MSQUIC)
+    set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-quic")
+  ENDIF()
+
   install(FILES CONTRIBUTING.md epl-v20 edl-v10 README.md notice.html DESTINATION ${CMAKE_INSTALL_DOCDIR})
 
   if(WIN32)
