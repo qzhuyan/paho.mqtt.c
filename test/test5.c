@@ -2756,6 +2756,14 @@ int test10(struct Options options)
  Test11: Session Resumption with session ticket
 
  *********************************************************************/
+
+void test11Connected(void* context, char* cause)
+{
+	MQTTAsync c = (MQTTAsync)context;
+
+	MyLog(LOGA_DEBUG, "In connected callback for client c, context %p\n", context);
+}
+
 void test11OnConnectFailure(void* context, MQTTAsync_failureData* response)
 {
 	AsyncTestClient* client = (AsyncTestClient*) context;
@@ -2845,7 +2853,7 @@ int test11(struct Options options)
 	assert("Good rc from setCallbacks", rc == MQTTASYNC_SUCCESS, "rc was %d", rc);
 
 
-	rc = MQTTAsync_setConnected(c, &tc, asyncTestOnConnect);
+	rc = MQTTAsync_setConnected(c, &tc, test11Connected);
 	assert("Good rc from setConnected", rc == MQTTASYNC_SUCCESS, "rc was %d ", rc);
 
 	MyLog(LOGA_DEBUG, "Connecting");
