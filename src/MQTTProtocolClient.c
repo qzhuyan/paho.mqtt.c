@@ -844,7 +844,7 @@ static void MQTTProtocol_retries(START_TIME_TYPE now, Clients* client, int regar
 				{
 					client->good = 0;
 					Log(TRACE_PROTOCOL, 29, NULL, client->clientID, client->net.socket,
-												Socket_getpeer(client->net.socket));
+						getpeer(client));
 					MQTTProtocol_closeSession(client, 1);
 					client = NULL;
 				}
@@ -862,7 +862,7 @@ static void MQTTProtocol_retries(START_TIME_TYPE now, Clients* client, int regar
 				{
 					client->good = 0;
 					Log(TRACE_PROTOCOL, 29, NULL, client->clientID, client->net.socket,
-							Socket_getpeer(client->net.socket));
+						getpeer(client));
 					MQTTProtocol_closeSession(client, 1);
 					client = NULL;
 				}

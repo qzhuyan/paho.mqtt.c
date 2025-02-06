@@ -390,6 +390,47 @@ if(PAHO_WITH_SSL OR PAHO_WITH_LIBRESSL)
       )
     endforeach()
   endif()
+
+
+  if (PAHO_WITH_SSL AND PAHO_WITH_MSQUIC AND PAHO_BUILD_SHARED)
+    # Add library
+    include(ExternalProject)
+    ExternalProject_Add(msquic_external
+        GIT_REPOSITORY "https://github.com/microsoft/msquic.git"
+        GIT_TAG "v2.2.2"
+        GIT_SHALLOW 1
+        GIT_SUBMODULES_SHALLOW 1
+        PREFIX "${CMAKE_BINARY_DIR}/external"
+        SOURCE_DIR "${CMAKE_BINARY_DIR}/external/msquic"
+        CMAKE_ARGS -DQUIC_ENABLE_LOGGING=${PAHO_ENABLE_QUIC_LOGGING} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DQUIC_TLS=openssl3 -DQUIC_OUTPUT_DIR=${CMAKE_BINARY_DIR}/external/msquic/src/msquic
+        BUILD_COMMAND ${CMAKE_COMMAND} --build .
+        INSTALL_COMMAND ""
+        )
+
+    # Set appropriate include and link directories
+    include_directories(${CMAKE_BINARY_DIR}/external/msquic/src/inc)
+    link_directories(${CMAKE_BINARY_DIR}/external/msquic/src/msquic)
+
+    # Add library target
+    add_library(msquic SHARED IMPORTED)
+    set_property(TARGET msquic PROPERTY IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/external/msquic/src/msquic/libmsquic.so)
+
+    # Link against the library
+    target_link_libraries(common_obj msquic)
+
+    # Specify the dependency on the external library
+    add_dependencies(common_obj msquic_external)
+
+    TARGET_LINK_LIBRARIES(paho-mqtt3cs PRIVATE msquic)
+    TARGET_LINK_LIBRARIES(paho-mqtt3as PRIVATE msquic)
+    TARGET_SOURCES(paho-mqtt3as PRIVATE Quic.c)
+    TARGET_SOURCES(paho-mqtt3cs PRIVATE Quic.c)
+    SET_PROPERTY(TARGET common_ssl_obj PROPERTY COMPILE_DEFINITIONS "MSQUIC=1;OPENSSL=1;PAHO_MQTT_EXPORTS=1")
+    TARGET_COMPILE_OPTIONS(common_ssl_obj PUBLIC "-ggdb3")
+    SET_PROPERTY(TARGET paho-mqtt3as PROPERTY COMPILE_DEFINITIONS "MSQUIC=1;OPENSSL=1;PAHO_MQTT_EXPORTS=1")
+    SET_PROPERTY(TARGET paho-mqtt3cs PROPERTY COMPILE_DEFINITIONS "MSQUIC=1;OPENSSL=1;PAHO_MQTT_EXPORTS=1")
+
+  endif()
 endif()
 
 install(EXPORT eclipse-paho-mqtt-cTargets

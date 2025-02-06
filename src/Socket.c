@@ -282,7 +282,7 @@ static int cmpsockfds(const void *p1, const void *p2)
 
 
 /**
- * Add a socket to the list of socket to check with select
+ * Add a socket to the list of socket to check with poll()
  * @param newSd the new socket to add
  */
 int Socket_addSocket(SOCKET newSd)
@@ -962,9 +962,9 @@ int Socket_close_only(SOCKET socket)
 		Socket_error("close", socket);
 #else
 	if (shutdown(socket, SHUT_WR) == SOCKET_ERROR)
-		Socket_error("shutdown", socket);
+		Socket_error("shutdown", socket); // this might fail if it is a quic socket
 	if ((rc = recv(socket, NULL, (size_t)0, 0)) == SOCKET_ERROR)
-		Socket_error("shutdown", socket);
+		Socket_error("shutdown", socket); // this might fail if it is a quic socket
 	if ((rc = close(socket)) == SOCKET_ERROR)
 		Socket_error("close", socket);
 #endif

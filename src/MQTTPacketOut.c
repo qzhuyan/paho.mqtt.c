@@ -120,8 +120,16 @@ int MQTTPacket_send_connect(Clients* client, int MQTTVersion,
 		writeData(&ptr, client->password, client->passwordlen);
 
 	rc = MQTTPacket_send(&client->net, packet.header, buf, len, 1, MQTTVersion);
+
+#if defined(MSQUIC)
+	if (client->net.quic && client->net.q_ctx->server_name)
+	{
+		rc = QUIC_start_0RTT_connection(client->net.q_ctx);
+	}
 	Log(LOG_PROTOCOL, 0, NULL, client->net.socket, client->clientID,
 			MQTTVersion, client->cleansession, rc);
+#endif //MSQUIC
+
 exit:
 	if (rc != TCPSOCKET_INTERRUPTED)
 		free(buf);

@@ -170,7 +170,7 @@ void SocketBuffer_cleanup(SOCKET socket)
  * Get any queued data for a specific socket
  * @param socket the socket to get queued data for
  * @param bytes the number of bytes of data to retrieve
- * @param actual_len the actual length returned
+ * @param actual_len the actual length returned, existing data
  * @return the actual data
  */
 char* SocketBuffer_getQueuedData(SOCKET socket, size_t bytes, size_t* actual_len)
@@ -255,6 +255,9 @@ int SocketBuffer_getQueuedChar(SOCKET socket, char* c)
 			rc = SOCKET_ERROR;
 			goto exit;
 		}
+	}
+	else {
+		Log(TRACE_MAXIMUM, -1, "Socket not found in socket buffer queue\n");
 	}
 exit:
 	FUNC_EXIT_RC(rc);

@@ -99,6 +99,9 @@ void MQTTAsync_global_init(MQTTAsync_init_options* inits)
 #if defined(OPENSSL)
 	SSLSocket_handleOpensslInit(inits->do_openssl_init);
 #endif
+#if defined(MSQUIC)
+	QUIC_handleInit(inits->do_msquic_init);
+#endif
 }
 
 #if !defined(min)
@@ -338,6 +341,9 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 		 && strncmp(URI_MQTTS, serverURI, strlen(URI_MQTTS)) != 0
 		 && strncmp(URI_WSS, serverURI, strlen(URI_WSS)) != 0
 #endif
+#if defined(MSQUIC)
+		 && strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) != 0
+#endif
 			)
 		{
 			rc = MQTTASYNC_BAD_PROTOCOL;
@@ -374,6 +380,10 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 #if defined(OPENSSL)
 		SSLSocket_initialize();
 #endif
+#if defined(MSQUIC)
+		MSQUIC_initialize();
+#endif
+
 		global_initialized = 1;
 	}
 	if ((m = malloc(sizeof(MQTTAsyncs))) == NULL)
@@ -415,6 +425,13 @@ int MQTTAsync_createWithOptions(MQTTAsync* handle, const char* serverURI, const 
 		serverURI += strlen(URI_WSS);
 		m->ssl = 1;
 		m->websocket = 1;
+	}
+#endif
+#if defined(MSQUIC)
+	else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
+	{
+		serverURI += strlen(URI_QUIC);
+		m->quic = 1;
 	}
 #endif
 	if ((m->serverURI = MQTTStrdup(serverURI)) == NULL)
@@ -579,6 +596,14 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 
 #if defined(OPENSSL)
 	if (m->ssl && options->ssl == NULL)
+	{
+		rc = MQTTASYNC_NULL_PARAMETER;
+		goto exit;
+	}
+#endif
+#if defined(MSQUIC)
+	// we reuse ssl opts
+	if (m->quic && options->ssl == NULL)
 	{
 		rc = MQTTASYNC_NULL_PARAMETER;
 		goto exit;
@@ -816,6 +841,13 @@ int MQTTAsync_connect(MQTTAsync handle, const MQTTAsync_connectOptions* options)
 				m->c->sslopts->protos = (const unsigned char*)MQTTStrdup((const char*)options->ssl->protos);
 			m->c->sslopts->protos_len = options->ssl->protos_len;
 		}
+	   if (m->c->sslopts->struct_version >= 0) // @FIXME bump version?
+	   {
+		   m->c->sslopts->zero_rtt = options->ssl->zero_rtt;
+#if defined(MSQUIC)
+		   m->c->sslopts->session_ticket = options->ssl->session_ticket;
+#endif
+	   }
 	}
 #else
 	if (options->struct_version != 0 && options->ssl)

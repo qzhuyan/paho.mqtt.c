@@ -22,6 +22,9 @@
 #define MQTTPACKET_H
 
 #include "Socket.h"
+#if defined(MSQUIC)
+#include "Quic.h"
+#endif
 #if defined(OPENSSL)
 #include "SSLSocket.h"
 #endif

@@ -118,6 +118,10 @@ size_t MQTTProtocol_addressPort(const char* uri, int* port, const char **topic, 
  * @param timeout how long to wait for a new socket to be created
  * @return return code
  */
+#if defined(MSQUIC)  // quic variant
+int MQTTProtocol_connect(const char* address, Clients* aClient, int quic, int ssl, int websocket, int MQTTVersion,
+		MQTTProperties* connectProperties, MQTTProperties* willProperties, long timeout)
+#else
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
 int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, int ssl, int websocket, int MQTTVersion,
@@ -135,6 +139,7 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 		MQTTProperties* connectProperties, MQTTProperties* willProperties)
 #endif
 #endif
+#endif
 {
 	int rc = 0,
 		port;
@@ -144,7 +149,11 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 	FUNC_ENTRY;
 	aClient->good = 1;
 
+#if defined(MSQUIC)
+	int unixsock = 0;
+#else
 	if (!unixsock)
+#endif
 	{
 		if (aClient->httpProxy)
 			p0 = aClient->httpProxy;
@@ -182,6 +191,8 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 		}
 	}
 
+
+	// Use proxy if any
 #if defined(OPENSSL)
 	if (!unixsock)
 	{
@@ -237,6 +248,7 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 #else
 	if (aClient->net.http_proxy) {
 #endif
+	// parse ports
 		addr_len = MQTTProtocol_addressPort(aClient->net.http_proxy, &port, NULL, PROXY_DEFAULT_PORT);
 #if defined(__GNUC__) && defined(__linux__)
 		if (timeout < 0)
@@ -267,7 +279,7 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 	}
 #endif
 	else {
-#if defined(OPENSSL)
+#if defined(OPENSSL) //|| defined(MSQUIC)
 		addr_len = MQTTProtocol_addressPort(address, &port, NULL, ssl ?
 				(websocket ? WSS_DEFAULT_PORT : SECURE_MQTT_DEFAULT_PORT) :
 				(websocket ? WS_DEFAULT_PORT : MQTT_DEFAULT_PORT) );
@@ -277,6 +289,13 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 #if defined(__GNUC__) && defined(__linux__)
 		if (timeout < 0)
 			rc = -1;
+#if defined(MSQUIC)
+		// currently we ignore proxy
+		else if(quic)
+		{
+			rc = QUIC_new(address, addr_len, port, &aClient->net, aClient->sslopts, 100);
+		}
+#endif //MSQUIC
 		else
 			rc = Socket_new(address, addr_len, port, &(aClient->net.socket), timeout);
 #else

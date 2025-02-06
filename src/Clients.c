@@ -53,3 +53,13 @@ int clientSocketCompare(void* a, void* b)
 	/*printf("comparing %d with %d\n", (char*)a, (char*)b); */
 	return client->net.socket == *(SOCKET*)b;
 }
+
+char* getpeer(Clients* client)
+{
+#if defined(MSQUIC)
+	if (client->net.quic)
+		return QUIC_getpeer(client->net.q_ctx);
+	else
+#endif
+		return Socket_getpeer(client->net.socket);
+}

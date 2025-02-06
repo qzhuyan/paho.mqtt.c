@@ -180,6 +180,7 @@ long elapsed(START_TIME_TYPE start_time)
 }
 #endif
 
+#undef assert
 #define assert(a, b, c, d) myassert(__FILE__, __LINE__, a, b, c, d)
 #define assert1(a, b, c, d, e) myassert(__FILE__, __LINE__, a, b, c, d, e)
 
