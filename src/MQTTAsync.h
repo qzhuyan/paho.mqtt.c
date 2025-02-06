@@ -1191,6 +1191,8 @@ typedef struct
 	 * - ZERO_RTT_DISABLED:  Zero-RTT is disabled. Session ticket is not used.
 	 * - ZERO_RTT_ENABLED: Zero-RTT is enalbed. Session ticket is used.
 	 * - ZERO_RTT_AUTO:  Zero-RTT in automode. Use session ticket when available.
+         in this mode, session ticket must be set but buffer could be empty (0 length)
+         for the first connection (1-RTT) to save a copy of session ticket.
 	 * @see session_ticket
 	 */
 	int zero_rtt;
@@ -1198,6 +1200,7 @@ typedef struct
 #if defined(MSQUIC)
 	/**
 	 * QUIC Session ticket for TLS session resumption.
+	 * The session ticket must not be NULL when zero_rtt is enabled. (ZERO_RTT_ENABLED, ZERO_RTT_AUTO)
 	 * @see zero_rtt
 	 */
 	QUIC_BUFFER* session_ticket;

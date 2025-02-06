@@ -349,8 +349,6 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
             pthread_mutex_unlock(&q_ctx->mutex);
             pthread_mutex_destroy(&q_ctx->mutex);
             MsQuic->ConfigurationClose(q_ctx->Configuration);
-            MsQuic->RegistrationClose(q_ctx->Registration);
-            Log(TRACE_MINIMUM, -1, "registration closed %p\n", q_ctx);
             free(q_ctx);
         }
 
@@ -508,6 +506,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     {
         if (!sslopts->session_ticket && sslopts->zero_rtt == ZERO_RTT_AUTO)
         {
+            Log(TRACE_MAXIMUM, -1, "QUIC_new: prepare buffer for session ticket\n");
             sslopts->session_ticket = malloc(sizeof(QUIC_BUFFER));
             sslopts->session_ticket->Buffer = NULL;
         }

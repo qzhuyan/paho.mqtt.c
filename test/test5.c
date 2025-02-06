@@ -2757,38 +2757,39 @@ int test10(struct Options options)
 
  *********************************************************************/
 
-void test11Connected(void* context, char* cause)
+void test11OnConnected(void* context, char* cause)
 {
-	MQTTAsync c = (MQTTAsync)context;
-
 	MyLog(LOGA_DEBUG, "In connected callback for client c, context %p\n", context);
+	int rc;
+	AsyncTestClient* tc = (AsyncTestClient*) context;
+	assert("First connect", 1, "test11OnConnected callback was called when connected is \n", 0);
+	rc = MQTTAsync_disconnect(tc->client, NULL);
+	tc->testFinished = 1;
 }
 
 void test11OnConnectFailure(void* context, MQTTAsync_failureData* response)
 {
-	AsyncTestClient* client = (AsyncTestClient*) context;
+	AsyncTestClient* tc = (AsyncTestClient*) context;
 	MyLog(LOGA_DEBUG, "In test11OnConnectFailure callback, %s",
-			client->clientid);
-
+			tc->clientid);
+	tc->testFinished = 1;
 	assert("There should be no failures in this test. ", 0, "test11OnConnectFailure callback was called\n", 0);
-	client->testFinished = 1;
 }
 
 void test11OnConnectionLost(void* context, char* cause)
 {
-	AsyncTestClient* client = (AsyncTestClient*) context;
+	AsyncTestClient* tc = (AsyncTestClient*) context;
 	MyLog(LOGA_DEBUG, "In test11OnPublishFailure callback, %s",
-			client->clientid);
-
+			tc->clientid);
 	assert("Connection should not lost.", 0, "test11OnConnectionLost callback was called \n", 0);
 }
 
+
+// Test connect with 0-RTT works with session ticket
 int test11(struct Options options)
 {
 	char* testname = "test11";
-
-	AsyncTestClient tc =
-	AsyncTestClient_initializer;
+	AsyncTestClient tc = AsyncTestClient_initializer;
 	MQTTAsync c;
 	MQTTAsync_connectOptions opts = MQTTAsync_connectOptions_initializer;
 	MQTTAsync_willOptions wopts = MQTTAsync_willOptions_initializer;
@@ -2800,9 +2801,7 @@ int test11(struct Options options)
 	MyLog(LOGA_INFO, "Starting test 11 - Reconnect");
 	fprintf(xml, "<testcase classname=\"test11\" name=\"%s\"", testname);
 	global_start_time = start_clock();
-	MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_ERROR);
 	//MQTTAsync_setTraceLevel(MQTTASYNC_TRACE_MINIMUM);
-	// @TODO 0-RTT with m-TLS does not work for some reason
 	MQTTAsync_create(&c, options.server_auth_connection, "test11", MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
 	assert("good rc from create", rc == MQTTASYNC_SUCCESS, "rc was %d\n", rc);
 	if (rc != MQTTASYNC_SUCCESS)
@@ -2816,7 +2815,7 @@ int test11(struct Options options)
 	tc.testFinished = 0;
 
 	opts.keepAliveInterval = 20;
-	opts.cleansession = 1;
+	opts.cleansession = 0;
 	opts.username = "testuser";
 	opts.password = "testpassword";
 
@@ -2829,7 +2828,7 @@ int test11(struct Options options)
 	opts.onSuccess = NULL;  // we use 'connected' callback instead
 	opts.onFailure = test11OnConnectFailure;
 	opts.context = &tc;
-	//opts.automaticReconnect = 1;
+	opts.automaticReconnect = 0;
 
 	opts.ssl = &sslopts;
 	if (options.server_key_file != NULL)
@@ -2842,6 +2841,11 @@ int test11(struct Options options)
 
 	opts.ssl->zero_rtt = 2; //ZERO_RTT_AUTO;
 
+	// Reserve empty session_ticket for 1-RTT to fill
+	opts.ssl->session_ticket = malloc(sizeof(QUIC_BUFFER));
+	opts.ssl->session_ticket->Buffer = NULL;
+	opts.ssl->session_ticket->Length = 0;
+
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 1;
 	opts.ssl->verify = 1;
@@ -2852,16 +2856,15 @@ int test11(struct Options options)
 			asyncTestOnDeliveryComplete);
 	assert("Good rc from setCallbacks", rc == MQTTASYNC_SUCCESS, "rc was %d", rc);
 
-
-	rc = MQTTAsync_setConnected(c, &tc, test11Connected);
+	rc = MQTTAsync_setConnected(c, &tc, test11OnConnected);
 	assert("Good rc from setConnected", rc == MQTTASYNC_SUCCESS, "rc was %d ", rc);
 
+	assert("Before connect we have empty session_ticket ", NULL == opts.ssl->session_ticket->Buffer, "session ticket is %p", opts.ssl->session_ticket->Buffer);
 	MyLog(LOGA_DEBUG, "Connecting");
 	rc = MQTTAsync_connect(c, &opts);
 	assert("Good rc from connect", rc == MQTTASYNC_SUCCESS, "rc was %d", rc);
 	if (rc != MQTTASYNC_SUCCESS)
 		goto exit;
-
 	while (!tc.testFinished)
 #if defined(_WIN32)
 		Sleep(100);
@@ -2869,18 +2872,12 @@ int test11(struct Options options)
 		usleep(10000L);
 #endif
 
-	MyLog(LOGA_DEBUG, "Now reconnecting....");
-	// Rest test context
-	tc.client = c;
-	memset(tc.rcvdmsgs, 0, sizeof(tc.rcvdmsgs));
-	memset(tc.sentmsgs, 0, sizeof(tc.sentmsgs));
-	tc.maxmsgs = MAXMSGS;
-	tc.subscribed = 0;
+	assert("None empty session_ticket. ", NULL != opts.ssl->session_ticket->Buffer, "session ticket is %p", opts.ssl->session_ticket->Buffer);
+	MyLog(LOGA_DEBUG, "Start 2nd connect with resume ticket");
 	tc.testFinished = 0;
-
-	rc = MQTTAsync_reconnect(tc.client);
-	assert("Good rc from reconnect", rc == MQTTASYNC_SUCCESS, "rc was %d ", rc);
-
+	rc = MQTTAsync_connect(c, &opts);
+	if (rc != MQTTASYNC_SUCCESS)
+		goto exit;
 	while (!tc.testFinished)
 #if defined(_WIN32)
 		Sleep(100);
