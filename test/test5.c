@@ -2842,10 +2842,11 @@ int test11(struct Options options)
 	opts.ssl->zero_rtt = 2; //ZERO_RTT_AUTO;
 
 	// Reserve empty session_ticket for 1-RTT to fill
+#if defined(MSQUIC)	
 	opts.ssl->session_ticket = malloc(sizeof(QUIC_BUFFER));
 	opts.ssl->session_ticket->Buffer = NULL;
 	opts.ssl->session_ticket->Length = 0;
-
+#endif
 	//opts.ssl->enabledCipherSuites = "DEFAULT";
 	//opts.ssl->enabledServerCertAuth = 1;
 	opts.ssl->verify = 1;
@@ -2858,8 +2859,9 @@ int test11(struct Options options)
 
 	rc = MQTTAsync_setConnected(c, &tc, test11OnConnected);
 	assert("Good rc from setConnected", rc == MQTTASYNC_SUCCESS, "rc was %d ", rc);
-
+#if defined(MSQUIC)	
 	assert("Before connect we have empty session_ticket ", NULL == opts.ssl->session_ticket->Buffer, "session ticket is %p", opts.ssl->session_ticket->Buffer);
+#endif
 	MyLog(LOGA_DEBUG, "Connecting");
 	rc = MQTTAsync_connect(c, &opts);
 	assert("Good rc from connect", rc == MQTTASYNC_SUCCESS, "rc was %d", rc);
@@ -2872,7 +2874,9 @@ int test11(struct Options options)
 		usleep(10000L);
 #endif
 
+#if defined(MSQUIC)
 	assert("None empty session_ticket. ", NULL != opts.ssl->session_ticket->Buffer, "session ticket is %p", opts.ssl->session_ticket->Buffer);
+#endif
 	MyLog(LOGA_DEBUG, "Start 2nd connect with resume ticket");
 	tc.testFinished = 0;
 	rc = MQTTAsync_connect(c, &opts);
@@ -2892,6 +2896,7 @@ exit: MQTTAsync_destroy(&c);
 	write_test_result();
 	return failures;
 }
+
 
 int main(int argc, char** argv)
 {
