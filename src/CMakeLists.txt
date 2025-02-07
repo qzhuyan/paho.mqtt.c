@@ -409,7 +409,7 @@ if(PAHO_WITH_SSL OR PAHO_WITH_LIBRESSL)
         curl -f -L
             https://github.com/microsoft/msquic/commit/12edf3725475d4a99e5598df3289bace47b8f56e.patch
             -o ${CMAKE_BINARY_DIR}/external/msquic/patch.patch &&
-        patch -p1 < ${CMAKE_BINARY_DIR}/external/msquic/patch.patch
+        patch -p1 < ${CMAKE_BINARY_DIR}/external/msquic/patch.patch || echo "already patched or failed to patch..."
         )
 
     # Set appropriate include and link directories
