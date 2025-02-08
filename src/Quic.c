@@ -30,6 +30,15 @@ static int QUIC_addSocket(SOCKET newSd);
 
 extern int Socket_addSocket(SOCKET newSd);
 
+static void EncodeHexBuffer(uint8_t* Buffer,
+                            uint8_t BufferLen,
+                            char* HexString);
+
+static void dump_sslkeylogfile(_In_z_ const char *FileName,
+                               _In_ QUIC_TLS_SECRETS TlsSecrets);
+
+static BOOLEAN ClientLoadConfiguration(QUIC_CTX* q_ctx, MQTTClient_SSLOptions *sslopts);
+
 /*=================================*/
 /* Global QUIC handles             */
 /*=================================*/
@@ -49,8 +58,6 @@ const QUIC_API_TABLE* MsQuic = NULL;
 const QUIC_BUFFER Alpn = { sizeof("mqtt") - 1, (uint8_t*)"mqtt" };
 
 const QUIC_REGISTRATION_CONFIG RegConfig = { "default", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
-
-BOOLEAN ClientLoadConfiguration (QUIC_CTX* q_ctx, MQTTClient_SSLOptions *sslopts);
 
 // @doc: call from MQTTAsync_createWithOptions
 void MSQUIC_initialize()
@@ -357,119 +364,7 @@ int QUIC_close(networkHandles* net, QUIC_UINT62 reasonCode)
     FUNC_EXIT;
 }
 
-void EncodeHexBuffer(uint8_t* Buffer,
-                     uint8_t BufferLen,
-                     char* HexString);
-inline
-void
-EncodeHexBuffer(
-    _In_reads_(BufferLen) uint8_t* Buffer,
-    _In_ uint8_t BufferLen,
-    _Out_writes_bytes_(2*BufferLen) char* HexString
-    )
-{
-    #define HEX_TO_CHAR(x) ((x) > 9 ? ('a' + ((x) - 10)) : '0' + (x))
-    for (uint8_t i = 0; i < BufferLen; i++) {
-        HexString[i*2]     = HEX_TO_CHAR(Buffer[i] >> 4);
-        HexString[i*2 + 1] = HEX_TO_CHAR(Buffer[i] & 0xf);
-    }
-}
 
-
-void
-dump_sslkeylogfile(_In_z_ const char *FileName,
-                   _In_ QUIC_TLS_SECRETS TlsSecrets)
-{
-  FILE *File = NULL;
-#ifdef _WIN32
-  if (fopen_s(&File, FileName, "ab"))
-    {
-      printf("Failed to open sslkeylogfile %s\n", FileName);
-      return;
-    }
-#else
-  File = fopen(FileName, "ab");
-#endif
-
-  if (File == NULL)
-    {
-      printf("Failed to open sslkeylogfile %s\n", FileName);
-      return;
-    }
-  if (fseek(File, 0, SEEK_END) == 0 && ftell(File) == 0)
-    {
-      fprintf(File, "# TLS 1.3 secrets log file\n");
-    }
-  char
-      ClientRandomBuffer[(2 * sizeof(((QUIC_TLS_SECRETS *)NULL)->ClientRandom))
-                         + 1]
-      = { 0 };
-  char TempHexBuffer[(2 * QUIC_TLS_SECRETS_MAX_SECRET_LEN) + 1] = { 0 };
-  if (TlsSecrets.IsSet.ClientRandom)
-    {
-      EncodeHexBuffer(TlsSecrets.ClientRandom,
-                      (uint8_t)sizeof(TlsSecrets.ClientRandom),
-                      ClientRandomBuffer);
-    }
-
-  if (TlsSecrets.IsSet.ClientEarlyTrafficSecret)
-    {
-      EncodeHexBuffer(TlsSecrets.ClientEarlyTrafficSecret,
-                      TlsSecrets.SecretLength,
-                      TempHexBuffer);
-      fprintf(File,
-              "CLIENT_EARLY_TRAFFIC_SECRET %s %s\n",
-              ClientRandomBuffer,
-              TempHexBuffer);
-    }
-
-  if (TlsSecrets.IsSet.ClientHandshakeTrafficSecret)
-    {
-      EncodeHexBuffer(TlsSecrets.ClientHandshakeTrafficSecret,
-                      TlsSecrets.SecretLength,
-                      TempHexBuffer);
-      fprintf(File,
-              "CLIENT_HANDSHAKE_TRAFFIC_SECRET %s %s\n",
-              ClientRandomBuffer,
-              TempHexBuffer);
-    }
-
-  if (TlsSecrets.IsSet.ServerHandshakeTrafficSecret)
-    {
-      EncodeHexBuffer(TlsSecrets.ServerHandshakeTrafficSecret,
-                      TlsSecrets.SecretLength,
-                      TempHexBuffer);
-      fprintf(File,
-              "SERVER_HANDSHAKE_TRAFFIC_SECRET %s %s\n",
-              ClientRandomBuffer,
-              TempHexBuffer);
-    }
-
-  if (TlsSecrets.IsSet.ClientTrafficSecret0)
-    {
-      EncodeHexBuffer(TlsSecrets.ClientTrafficSecret0,
-                      TlsSecrets.SecretLength,
-                      TempHexBuffer);
-      fprintf(File,
-              "CLIENT_TRAFFIC_SECRET_0 %s %s\n",
-              ClientRandomBuffer,
-              TempHexBuffer);
-    }
-
-  if (TlsSecrets.IsSet.ServerTrafficSecret0)
-    {
-      EncodeHexBuffer(TlsSecrets.ServerTrafficSecret0,
-                      TlsSecrets.SecretLength,
-                      TempHexBuffer);
-      fprintf(File,
-              "SERVER_TRAFFIC_SECRET_0 %s %s\n",
-              ClientRandomBuffer,
-              TempHexBuffer);
-    }
-
-  fflush(File);
-  fclose(File);
-}
 
 
 /**
@@ -490,6 +385,8 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
 
     net->quic = 1;
     net->ssl = 0; //@TODO set at other places?
+    net->socket = eventfd(0, EFD_NONBLOCK);
+
     net->q_ctx = (QUIC_CTX *) malloc(sizeof(QUIC_CTX));
     memset(net->q_ctx, 0, sizeof(QUIC_CTX));
     net->q_ctx->recv_buf = NULL;
@@ -497,11 +394,15 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     net->q_ctx->recv_buf_offset = 0;
     net->q_ctx->is_closed = FALSE;
     net->q_ctx->shutdown_state = SHUTDOWN_STATE_NONE;
-    net->socket = eventfd(0, EFD_NONBLOCK);
     net->q_ctx->Socket = net->socket;
     net->q_ctx->Stream = 0;
     net->q_ctx->Connection = 0;
     net->q_ctx->sslkeylogfile = getenv("SSLKEYLOGFILE");
+
+    // Mutex for q_ctx
+    pthread_mutex_init(&net->q_ctx->mutex, 0);
+
+    // Zero RTT and session ticket
     if (sslopts->zero_rtt != ZERO_RTT_DISABLED)
     {
         if (!sslopts->session_ticket && sslopts->zero_rtt == ZERO_RTT_AUTO)
@@ -523,23 +424,26 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         net->q_ctx->nst = NULL;
     }
 
-    pthread_mutex_init(&net->q_ctx->mutex, 0);
-
+  
+    // Open Registration
     if (QUIC_FAILED(Status = MsQuic->RegistrationOpen(&RegConfig, &net->q_ctx->Registration))) {
         Log(LOG_FATAL, -1, "RegistrationOpen failed, 0x%x!\n", Status);
         goto exit;
     }
 
 
+    // @TODO Add socket ?
     QUIC_addSocket(net->socket);
 
+
+    // Connection Open
     if (QUIC_FAILED(Status = MsQuic->ConnectionOpen(net->q_ctx->Registration, ClientConnectionCallback, net->q_ctx, &net->q_ctx->Connection))) {
         Log(TRACE_MINIMUM, -1, "ConnectionOpen failed, 0x%x!\n", Status);
         goto exit;
     }
     Log(TRACE_MINIMUM, -1, "QUIC_new: conn: %p", net->q_ctx->Connection);
 
-
+    // Set TLS parms
     // @TODO: condition set
     Status = MsQuic->SetParam(
         net->q_ctx->Connection,
@@ -549,7 +453,6 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         Log(TRACE_MINIMUM, -1, "set QUIC_PARAM_CONN_TLS_SECRETS success");
     }
 
-
     // Load configuration
     if (!ClientLoadConfiguration(net->q_ctx, sslopts)) {
         Log(LOG_ERROR, -1, "Client load conf failed\n");
@@ -557,6 +460,8 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         goto exit;
     }
 
+
+    // Hostname
     char* host  = (char *)malloc((addr_len + 1) * sizeof(char));
     strncpy(host, addr, addr_len);
     host[addr_len] = '\0';
@@ -585,6 +490,8 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         }
     }
 
+
+    // Open Control Stream
     if (QUIC_FAILED(Status = MsQuic->StreamOpen(net->q_ctx->Connection,
                                                 QUIC_STREAM_OPEN_FLAG_NONE,
                                                 ClientStreamCallback,
@@ -594,6 +501,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
         goto exit;
     }
 
+    // Start Stream before start connection
     if (QUIC_FAILED(Status = MsQuic->StreamStart(net->q_ctx->Stream, QUIC_STREAM_START_FLAG_NONE))) {
         Log(TRACE_MINIMUM, -1, "StreamStart failed, 0x%x!\n", Status);
         MsQuic->StreamClose(net->q_ctx->Stream);
@@ -601,6 +509,7 @@ int QUIC_new(const char* addr, size_t addr_len, int port, networkHandles* net, M
     }
 
 
+    // Start Connection
     Log(TRACE_MINIMUM, -1, "QUIC_new: host: %s, port: %d", host, port);
     if ( !use_0rtt )
     {
@@ -1171,4 +1080,115 @@ exit:
 	Paho_thread_unlock_mutex(socket_mutex);
 	FUNC_EXIT_RC(rc);
 	return rc;
+}
+
+inline
+void
+EncodeHexBuffer(
+    _In_reads_(BufferLen) uint8_t* Buffer,
+    _In_ uint8_t BufferLen,
+    _Out_writes_bytes_(2*BufferLen) char* HexString
+    )
+{
+    #define HEX_TO_CHAR(x) ((x) > 9 ? ('a' + ((x) - 10)) : '0' + (x))
+    for (uint8_t i = 0; i < BufferLen; i++) {
+        HexString[i*2]     = HEX_TO_CHAR(Buffer[i] >> 4);
+        HexString[i*2 + 1] = HEX_TO_CHAR(Buffer[i] & 0xf);
+    }
+}
+
+
+void
+dump_sslkeylogfile(_In_z_ const char *FileName,
+                   _In_ QUIC_TLS_SECRETS TlsSecrets)
+{
+  FILE *File = NULL;
+#ifdef _WIN32
+  if (fopen_s(&File, FileName, "ab"))
+    {
+      printf("Failed to open sslkeylogfile %s\n", FileName);
+      return;
+    }
+#else
+  File = fopen(FileName, "ab");
+#endif
+
+  if (File == NULL)
+    {
+      printf("Failed to open sslkeylogfile %s\n", FileName);
+      return;
+    }
+  if (fseek(File, 0, SEEK_END) == 0 && ftell(File) == 0)
+    {
+      fprintf(File, "# TLS 1.3 secrets log file\n");
+    }
+  char
+      ClientRandomBuffer[(2 * sizeof(((QUIC_TLS_SECRETS *)NULL)->ClientRandom))
+                         + 1]
+      = { 0 };
+  char TempHexBuffer[(2 * QUIC_TLS_SECRETS_MAX_SECRET_LEN) + 1] = { 0 };
+  if (TlsSecrets.IsSet.ClientRandom)
+    {
+      EncodeHexBuffer(TlsSecrets.ClientRandom,
+                      (uint8_t)sizeof(TlsSecrets.ClientRandom),
+                      ClientRandomBuffer);
+    }
+
+  if (TlsSecrets.IsSet.ClientEarlyTrafficSecret)
+    {
+      EncodeHexBuffer(TlsSecrets.ClientEarlyTrafficSecret,
+                      TlsSecrets.SecretLength,
+                      TempHexBuffer);
+      fprintf(File,
+              "CLIENT_EARLY_TRAFFIC_SECRET %s %s\n",
+              ClientRandomBuffer,
+              TempHexBuffer);
+    }
+
+  if (TlsSecrets.IsSet.ClientHandshakeTrafficSecret)
+    {
+      EncodeHexBuffer(TlsSecrets.ClientHandshakeTrafficSecret,
+                      TlsSecrets.SecretLength,
+                      TempHexBuffer);
+      fprintf(File,
+              "CLIENT_HANDSHAKE_TRAFFIC_SECRET %s %s\n",
+              ClientRandomBuffer,
+              TempHexBuffer);
+    }
+
+  if (TlsSecrets.IsSet.ServerHandshakeTrafficSecret)
+    {
+      EncodeHexBuffer(TlsSecrets.ServerHandshakeTrafficSecret,
+                      TlsSecrets.SecretLength,
+                      TempHexBuffer);
+      fprintf(File,
+              "SERVER_HANDSHAKE_TRAFFIC_SECRET %s %s\n",
+              ClientRandomBuffer,
+              TempHexBuffer);
+    }
+
+  if (TlsSecrets.IsSet.ClientTrafficSecret0)
+    {
+      EncodeHexBuffer(TlsSecrets.ClientTrafficSecret0,
+                      TlsSecrets.SecretLength,
+                      TempHexBuffer);
+      fprintf(File,
+              "CLIENT_TRAFFIC_SECRET_0 %s %s\n",
+              ClientRandomBuffer,
+              TempHexBuffer);
+    }
+
+  if (TlsSecrets.IsSet.ServerTrafficSecret0)
+    {
+      EncodeHexBuffer(TlsSecrets.ServerTrafficSecret0,
+                      TlsSecrets.SecretLength,
+                      TempHexBuffer);
+      fprintf(File,
+              "SERVER_TRAFFIC_SECRET_0 %s %s\n",
+              ClientRandomBuffer,
+              TempHexBuffer);
+    }
+
+  fflush(File);
+  fclose(File);
 }
