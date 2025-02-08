@@ -3113,12 +3113,6 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	int rc1 = 0;
 
 	FUNC_ENTRY;
-#if defined(MSQUIC_USE_EPOLL)
-	*sock = QUIC_getReadySocket(0, 0, socket_mutex, rc);
-	if(*sock != 0)
-		Log(TRACE_MINIMUM, -1, "QUIC is waiting at sock %d\n", *sock);
-	else
-#endif
 #if defined(OPENSSL)
 	if ((*sock = SSLSocket_getPendingRead()) == -1)
 	{
@@ -3144,7 +3138,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 		if (ListFindItem(MQTTAsync_handles, sock, clientSockCompare) != NULL)
 		{
 			m = (MQTTAsync)(MQTTAsync_handles->current->content);
-#if defined(MSQUIC) && !defined(MSQUIC_USE_EPOLL)
+#if defined(MSQUIC)
 			if (m->quic)
 			{
 				uint64_t u = -1;

@@ -47,10 +47,6 @@ static BOOLEAN ClientLoadConfiguration(QUIC_CTX* q_ctx, MQTTClient_SSLOptions *s
  */
 extern mutex_type socket_mutex;
 
-#if defined(MSQUIC_USE_EPOLL)
-int epollfd_read = -1; /**< epoll file descriptor */
-#endif
-
 /*=================================*/
 /* Global QUIC Vars                */
 /*=================================*/
@@ -73,12 +69,6 @@ void MSQUIC_initialize()
         }
     }
 
-#if defined(MSQUIC_USE_EPOLL)
-    if(-1 == epollfd_read)
-    {
-        epollfd_read = epoll_create1(0);
-    }
-#endif
     FUNC_EXIT;
     return;
 Error:
@@ -634,64 +624,6 @@ void QUIC_setWriteAvailableCallback(QUIC_writeAvailable* mywriteavailable)
   FUNC_EXIT;
 }
 
-#if defined(MSQUIC_USE_EPOLL)
-
-/**
- *  Returns the next socket ready for communications as indicated by epoll
- *  @param more_work flag to indicate more work is waiting, and thus a timeout value of 0 should
- *  be used for the select
- *  @param timeout the timeout to be used in ms
- *  @param rc a value other than 0 indicates an error of the returned socket
- *  @return the socket next ready, or 0 if none is ready
- */
-SOCKET QUIC_getReadySocket(int more_work, int timeout_ms, mutex_type mutex, int* rc)
-{
-    FUNC_ENTRY;
-    SOCKET socket = 0;
-    struct timespec timeout;
-    struct epoll_event ev;
-    // @TODO lock mutex
-    //pthread_mutex_lock(&q_ctx->mutex);
-    clock_gettime(CLOCK_REALTIME, &timeout);
-    timeout.tv_nsec += timeout_ms * 1000;
-
-    Thread_lock_mutex(mutex);
-
-    if(epollfd_read == -1)
-    {
-        // uninitialized
-        *rc = 0;
-    }
-    else
-    {
-        *rc = epoll_wait(epollfd_read, &ev, 1, timeout_ms);
-    }
-
-    if (*rc == -1)
-    {
-        Log(LOG_ERROR, -1 , "epoll wait error: %s\n", strerror(errno));
-    }
-    else if(*rc >0)
-    {
-        uint64_t u;
-        // Clear the event
-        if (0 == read(ev.data.fd, &u, sizeof(uint64_t)))
-            { //socket may closed
-                *rc = -1;
-            }
-            else
-            {
-                Log(TRACE_MINIMUM, -1, "eventfd object is readable: %ld\n", u);
-                socket = ev.data.fd;
-                *rc = 0;
-            }
-    }
-    Thread_unlock_mutex(mutex);
-
-    FUNC_EXIT_RC(*rc);
-    return socket;
-} //QUIC_getReadySocket
-#endif // MSQUIC_USE_EPOLL
 /*
 ** Internals
 */
@@ -1065,17 +997,7 @@ int QUIC_addSocket(SOCKET newSd)
 
 	FUNC_ENTRY;
 	Paho_thread_lock_mutex(socket_mutex);
-#if defined(MSQUIC_USE_EPOLL)
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET;
-    ev.data.fd = newSd;
-    if (-1 == epoll_ctl(epollfd_read, EPOLL_CTL_ADD, newSd, &ev)) {
-        Log(LOG_FATAL, -1, "epoll_ctl error: %s\n", strerror(errno));
-    }
-    Log(TRACE_MINIMUM, -1, "epoll_ctl add socket success\n");
-#else
     Socket_addSocket(newSd);
-#endif
 exit:
 	Paho_thread_unlock_mutex(socket_mutex);
 	FUNC_EXIT_RC(rc);
