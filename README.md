@@ -15,6 +15,7 @@ Synchronous and various asynchronous programming models are supported.
 * [MQTT website](http://mqtt.org)
 * [The MQTT 3.1.1 standard](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)
 * [The MQTT 5.0 standard](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
+* [MQTT over QUIC](https://www.emqx.io/docs/en/v5.1/mqtt-over-quic/introduction.html)
 * [HiveMQ introduction to MQTT](https://www.hivemq.com/mqtt/)
 * [OASIS Introduction to MQTT presentation](https://www.oasis-open.org/committees/download.php/49205/MQTT-OASIS-Webinar.pdf)
 
@@ -39,6 +40,7 @@ Samples are available in the Doxygen docs and also in `src/samples` for referenc
 - *paho_cs_pub.c* and *paho_cs_sub.c:* command line utilities using MQTTClient to publish and subscribe
 - *MQTTClient_publish.c, MQTTClient_subscribe.c* and *MQTTClient_publish_async.c:* MQTTClient simple code examples
 - *MQTTAsync_publish.c* and *MQTTAsync_subscribe.c:* MQTTAsync simple code examples
+- *MQTTAsync_quic_publish.c* and *MQTTAsync_quic_subscribe.c:* MQTTAsync simple code examples
 
 Some potentially useful blog posts:
 
@@ -194,6 +196,8 @@ MQTT_TEST_BROKER | tcp://localhost:1883 | MQTT connection URL for a broker to us
 MQTT_TEST_PROXY | tcp://localhost:1883 | Hostname of the test proxy to use
 MQTT_SSL_HOSTNAME | localhost | Hostname of a test SSL MQTT broker to use
 PAHO_BUILD_DEB_PACKAGE | FALSE | Build debian package
+PAHO_WITH_MSQUIC | FALSE | Enable/Disable MQTT over QUIC support
+PAHO_ENABLE_QUIC_LOGGING | FALSE | Enable/Disable QUIC logging, requires LTTNG 
 
 Using these variables CMake can be used to generate your Ninja or Make files. Using CMake, building out-of-source is the default. Therefore it is recommended to invoke all build commands inside your chosen build directory but outside of the source tree.
 

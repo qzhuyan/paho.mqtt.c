@@ -20,6 +20,10 @@ if(NOT DOXYGEN_FOUND)
   message(FATAL_ERROR "Doxygen is needed to build the documentation.")
 endif()
 
+IF (PAHO_WITH_MSQUIC)
+    set(PREDEFINED_MACRO "MSQUIC=1")
+ENDIF()
+
 set(DOXYTARGETS)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc)
 

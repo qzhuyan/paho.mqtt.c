@@ -196,6 +196,14 @@ static int MQTTAsync_checkConn(MQTTAsync_command* command, MQTTAsyncs* client, i
 	FUNC_ENTRY;
 	rc = command->details.conn.currentURI + 1 < client->serverURIcount ||
 		(was_connected == 0 && command->details.conn.MQTTVersion == MQTTVERSION_3_1 && client->c->MQTTVersion == MQTTVERSION_DEFAULT);
+
+#if defined(MSQUIC)
+	if (client->quic && client->c->net.q_ctx == NULL)
+	{
+		// No try if quic context is NULL
+		rc = 0;
+	}
+#endif
 	FUNC_EXIT_RC(rc);
 	return rc;
 }
@@ -1360,6 +1368,14 @@ static int MQTTAsync_processCommand(void)
 						command->client->websocket = 1;
 					}
 #endif
+#if defined(MSQUIC)
+					else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
+					{
+						serverURI += strlen(URI_QUIC);
+						command->client->quic = 1;
+					}
+#endif
+
 				}
 			}
 
@@ -1373,7 +1389,12 @@ static int MQTTAsync_processCommand(void)
 			else
 				command->command.details.conn.MQTTVersion = command->client->c->MQTTVersion;
 
-			Log(TRACE_PROTOCOL, -1, "Connecting to serverURI %s with MQTT version %d", serverURI, command->command.details.conn.MQTTVersion);
+			Log(TRACE_PROTOCOL, -1, "Connecting to serverURI %s with MQTT version %d, proxy %s", serverURI, command->command.details.conn.MQTTVersion,
+				command->client->c->httpsProxy);
+#if defined(MSQUIC)
+			rc = MQTTProtocol_connect(serverURI, command->client->c, command->client->quic, command->client->ssl, command->client->websocket,
+									  command->command.details.conn.MQTTVersion, command->client->connectProps, command->client->willProps, 100);
+#else
 #if defined(OPENSSL)
 #if defined(__GNUC__) && defined(__linux__)
 			rc = MQTTProtocol_connect(serverURI, command->client->c, command->client->unixsock, command->client->ssl, command->client->websocket,
@@ -1391,7 +1412,7 @@ static int MQTTAsync_processCommand(void)
 					command->command.details.conn.MQTTVersion, command->client->connectProps, command->client->willProps);
 #endif
 #endif
-
+#endif
 			if (command->client->c->connect_state == NOT_IN_PROGRESS)
 				rc = SOCKET_ERROR;
 
@@ -2000,7 +2021,7 @@ void MQTTAsync_freeCommands(MQTTAsyncs* m)
 	FUNC_EXIT;
 }
 
-
+// @doc complete MQTT connect/connack procedure
 static int MQTTAsync_completeConnection(MQTTAsyncs* m, Connack* connack)
 {
 	int rc = MQTTASYNC_FAILURE;
@@ -2470,7 +2491,16 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 			MQTTPacket_send_disconnect(client, reasonCode, props);
 		MQTTAsync_lock_mutex(socket_mutex);
 		WebSocket_close(&client->net, WebSocket_CLOSE_NORMAL, NULL);
+#if defined(MSQUIC)
+		if (client->net.quic)
+		{
+			QUIC_close(&client->net, reasonCode);
+			MQTTAsync_unlock_mutex(socket_mutex);
+		} else
+#endif
 #if defined(OPENSSL)
+		if (client->net.ssl)
+	{
 		SSL_SESSION_free(client->session); /* is a no-op if session is NULL */
 		client->session = NULL; /* show the session has been freed */
 		SSLSocket_close(&client->net);
@@ -2480,7 +2510,9 @@ static void MQTTAsync_closeOnly(Clients* client, enum MQTTReasonCodes reasonCode
 		client->net.socket = 0;
 #if defined(OPENSSL)
 		client->net.ssl = NULL;
+	}
 #endif
+
 	}
 	client->connected = 0;
 	client->connect_state = NOT_IN_PROGRESS;
@@ -2899,6 +2931,13 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 			default_port = WSS_DEFAULT_PORT;
 		}
 #endif
+#if defined(MSQUIC)
+		else if (strncmp(URI_QUIC, serverURI, strlen(URI_QUIC)) == 0)
+		{
+			serverURI += strlen(URI_QUIC);
+			default_port = SECURE_MQTT_DEFAULT_PORT; // UDP for quic
+		}
+#endif
 	}
 
 	if (m->c->connect_state == TCP_IN_PROGRESS) /* TCP connect started - check for completion */
@@ -2913,8 +2952,7 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 			goto exit;
 
 		Socket_clearPendingWrite(m->c->net.socket);
-
-#if defined(OPENSSL)
+#if defined(OPENSSL) // TCP_IN_PROGRESS
 		if (m->ssl)
 		{
 			int port;
@@ -2982,7 +3020,7 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 		}
 		else
 		{
-#endif
+#endif // SSL and TCP_IN_PROGRESS
 			if (m->c->net.http_proxy) {
 				m->c->connect_state = PROXY_CONNECT_IN_PROGRESS;
 				if ((rc = Proxy_connect( &m->c->net, 0, serverURI)) == SOCKET_ERROR )
@@ -3035,6 +3073,19 @@ static int MQTTAsync_connecting(MQTTAsyncs* m)
 		}
 	}
 #endif
+#if defined(MSQUIC)
+	else if (m->quic) /* QUIC connect @TODO check m->c->connect_state*/
+	{  // This might never be called since MSQUIC is async
+		Log(TRACE_MINIMUM, -1, "send connect at state %d\n\n\n", m->c->connect_state);
+		/* QUIC connect completed, in which case send the MQTT connect packet */
+		if ((rc = MQTTPacket_send_connect(m->c, m->connect.details.conn.MQTTVersion,
+					m->connectProps, m->willProps)) == SOCKET_ERROR)
+		{
+			goto exit;
+		}
+		m->c->connect_state = WAIT_FOR_CONNACK;
+	}
+#endif
 	else if (m->c->connect_state == WEBSOCKET_IN_PROGRESS) /* Websocket connect sent - wait for completion */
 	{
 		if ((rc = WebSocket_upgrade( &m->c->net ) ) == SOCKET_ERROR )
@@ -3069,7 +3120,8 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 		int should_stop = 0;
 
 		/* 0 from getReadySocket indicates no work to do, rc -1 == error */
-		*sock = Socket_getReadySocket(0, (int)timeout, socket_mutex, &rc1);
+		// @FIXME timeout
+		*sock = Socket_getReadySocket(0, timeout, socket_mutex, &rc1);
 		*rc = rc1;
 		MQTTAsync_lock_mutex(mqttasync_mutex);
 		should_stop = MQTTAsync_tostop;
@@ -3084,7 +3136,25 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 	{
 		MQTTAsyncs* m = NULL;
 		if (ListFindItem(MQTTAsync_handles, sock, clientSockCompare) != NULL)
+		{
 			m = (MQTTAsync)(MQTTAsync_handles->current->content);
+#if defined(MSQUIC)
+			if (m->quic)
+			{
+				uint64_t u = -1;
+				if (0 == read(*sock, &u, sizeof(u)))
+				{
+					// socket may closed
+					Log(TRACE_MINIMUM, -1, "eventfd object is not readable: %d\n", *sock);
+					*rc = -1;
+				}
+				else
+				{
+					Log(TRACE_MINIMUM, -1, "eventfd object is readable: %d\n", *sock);
+				}
+			}
+#endif //MSQUIC
+		}
 		if (m != NULL)
 		{
 			Log(TRACE_MINIMUM, -1, "m->c->connect_state = %d", m->c->connect_state);
@@ -3101,12 +3171,12 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 		if (pack)
 		{
 			int freed = 1;
-
+			unsigned int packetType = pack->header.bits.type;
 			/* Note that these handle... functions free the packet structure that they are dealing with */
-			if (pack->header.bits.type == PUBLISH)
+			if (packetType == PUBLISH)
 				*rc = MQTTProtocol_handlePublishes(pack, *sock);
-			else if (pack->header.bits.type == PUBACK || pack->header.bits.type == PUBCOMP ||
-					pack->header.bits.type == PUBREC)
+			else if (packetType == PUBACK || packetType == PUBCOMP ||
+					packetType == PUBREC)
 			{
 				int msgid = 0,
 					mqttversion = 0;
@@ -3121,7 +3191,7 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 					ack = *(Ack*)pack;
 					/* these values are stored because the packet structure is freed in the handle functions */
 					msgid = ack.msgId;
-					msgtype = pack->header.bits.type;
+					msgtype = packetType;
 					if (ack.MQTTVersion >= MQTTVERSION_5)
 					{
 						ackrc = ack.rc;
@@ -3229,9 +3299,9 @@ static MQTTPacket* MQTTAsync_cycle(SOCKET* sock, unsigned long timeout, int* rc)
 				if (pubToRemove != NULL)
 					MQTTProtocol_removePublication(pubToRemove);
 			}
-			else if (pack->header.bits.type == PUBREL)
+			else if (packetType == PUBREL)
 				*rc = MQTTProtocol_handlePubrels(pack, *sock);
-			else if (pack->header.bits.type == PINGRESP)
+			else if (packetType == PINGRESP)
 				*rc = MQTTProtocol_handlePingresps(pack, *sock);
 			else
 				freed = 0;

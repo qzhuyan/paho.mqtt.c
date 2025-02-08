@@ -24,6 +24,10 @@
 #include <openssl/ssl.h>
 #endif
 
+#if defined(MSQUIC)
+#include <msquic.h>
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 	typedef WSABUF iobuf;
 #else
