@@ -266,6 +266,18 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 		rc = Socket_unix_new(address, addr_len, &(aClient->net.socket));
 	}
 #endif
+
+#if defined(OPENSSL) && defined(WITH_OPENSSL_QUIC)
+	else if (ssl == 2) {
+		addr_len = MQTTProtocol_addressPort(address, &port, NULL, MQTT_DEFAULT_PORT);
+		aClient->net.quic_mode = QUIC_MODE_PREFERRED;
+#if defined(__GNUC__) && defined(__linux__)
+		rc = Socket_dgram_new(address, addr_len, port, &(aClient->net.socket), timeout);
+#else
+		rc = Socket_dgram_new(address, addr_len, port, &(aClient->net.socket));
+#endif
+	}
+#endif
 	else {
 #if defined(OPENSSL)
 		addr_len = MQTTProtocol_addressPort(address, &port, NULL, ssl ?
@@ -283,10 +295,15 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 		rc = Socket_new(address, addr_len, port, &(aClient->net.socket));
 #endif
 	}
+
+	#if defined(OPENSSL) && defined(WITH_OPENSSL_QUIC)
+	if (rc == EINPROGRESS || rc == EWOULDBLOCK || ssl != 2)
+	#else
 	if (rc == EINPROGRESS || rc == EWOULDBLOCK)
+	#endif
 		aClient->connect_state = TCP_IN_PROGRESS; /* TCP connect called - wait for connect completion */
 	else if (rc == 0)
-	{	/* TCP connect completed. If SSL, send SSL connect */
+	{	/* TCP/UDP connect completed. If SSL, send SSL connect */
 #if defined(OPENSSL)
 		if (ssl)
 		{
@@ -324,7 +341,12 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 			if ( rc == TCPSOCKET_INTERRUPTED )
 				aClient->connect_state = WEBSOCKET_IN_PROGRESS; /* Websocket connect called - wait for completion */
 		}
+
+#ifdef OPENSSL
+		if (rc == 0 || (rc == 1 && ssl == 2))
+#else
 		if (rc == 0)
+#endif
 		{
 			/* Now send the MQTT connect packet */
 			if ((rc = MQTTPacket_send_connect(aClient, MQTTVersion, connectProperties, willProperties)) == 0)

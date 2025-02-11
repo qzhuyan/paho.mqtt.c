@@ -548,6 +548,15 @@ int SSLSocket_createContext(networkHandles* net, MQTTClient_SSLOptions* opts)
 	int rc = 1;
 
 	FUNC_ENTRY;
+
+#if defined(WITH_OPENSSL_QUIC)
+	if (net->quic_mode > QUIC_MODE_NONE)
+	{
+		Log(TRACE_MINIMUM, -1, "Creating QUIC context");
+		net->ctx = SSL_CTX_new(OSSL_QUIC_client_thread_method());
+	}
+#endif
+
 	if (net->ctx == NULL)
 	{
 #if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
@@ -577,6 +586,12 @@ int SSLSocket_createContext(networkHandles* net, MQTTClient_SSLOptions* opts)
 #if defined(SSL_OP_NO_TLSv1_2) && !defined(OPENSSL_NO_TLS1)
 		case MQTT_SSL_VERSION_TLS_1_2:
 			net->ctx = SSL_CTX_new(TLSv1_2_client_method());
+			break;
+#endif
+#if !defined(WITH_OPENSSL_QUIC)
+		case MQTT_SSL_VERSION_QUIC:
+			Log(TRACE_MINIMUM, -1, "Creating QUIC context");
+			net->ctx = SSL_CTX_new(OSSL_QUIC_client_thread_method());
 			break;
 #endif
 		default:
@@ -726,6 +741,20 @@ int SSLSocket_setSocketForSSL(networkHandles* net, MQTTClient_SSLOptions* opts,
 
 		net->ssl = SSL_new(net->ctx);
 
+#if defined(WITH_OPENSSL_QUIC)
+	if (net->quic_mode > QUIC_MODE_NONE)
+	{
+		/* ALPN is mandtory for QUIC */
+		static const unsigned char alpn[] = {4, 'm', 'q', 't', 't'};
+		if ((rc = SSL_set_alpn_protos(net->ssl, alpn, sizeof(alpn)))) {
+			/* Note: SSL_set_alpn_protos returns 1 for failure. */
+			SSLSocket_error("SSL_set_quic_alpn", net->ssl, net->socket, rc, NULL, NULL);
+		}
+		// Client side QUIC
+		SSL_set_connect_state(net->ssl);
+	}
+#endif
+		
 		/* Log all ciphers available to the SSL sessions (loaded in ctx) */
 		for (i = 0; ;i++)
 		{
