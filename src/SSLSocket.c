@@ -71,6 +71,10 @@ int SSLSocket_createContext(networkHandles* net, MQTTClient_SSLOptions* opts);
 void SSLSocket_destroyContext(networkHandles* net);
 void SSLSocket_addPendingRead(SOCKET sock);
 
+#if defined(WITH_OPENSSL_QUIC)
+static int SSLSocket_is_quic_closed(SSL* ssl);
+#endif
+
 /* 1 ~ we are responsible for initializing openssl; 0 ~ openssl init is done externally */
 static int handle_openssl_init = 1;
 static ssl_mutex_type* sslLocks = NULL;
@@ -806,8 +810,10 @@ int SSLSocket_connect(SSL* ssl, SOCKET sock, const char* hostname, int verify, i
 		error = SSLSocket_error("SSL_connect", ssl, sock, rc, cb, u);
 		if (error == SSL_FATAL)
 			rc = error;
-		if (error == SSL_ERROR_WANT_READ || error == SSL_ERROR_WANT_WRITE)
+		else if (error == SSL_ERROR_WANT_READ || error == SSL_ERROR_WANT_WRITE)
 			rc = TCPSOCKET_INTERRUPTED;
+		else
+			rc = error*-1;
 	}
 #if (OPENSSL_VERSION_NUMBER >= 0x010002000) /* 1.0.2 and later */
 	else if (verify)
@@ -884,8 +890,19 @@ int SSLSocket_getch(SSL* ssl, SOCKET socket, char* c)
 			SocketBuffer_interrupted(socket, 0);
 		}
 	}
-	else if (rc == 0)
-		rc = SOCKET_ERROR; 	/* The return value from recv is 0 when the peer has performed an orderly shutdown. */
+#if defined(WITH_OPENSSL_QUIC)
+	else if (rc == 0) {
+		if (!SSLSocket_is_quic_closed(ssl))
+		{
+			int want = SSL_want(ssl);
+			Log(TRACE_MIN, -1, "SSL_read want %d", want);
+			if (want == SSL_READING)
+				rc = TCPSOCKET_INTERRUPTED;
+		}
+		else
+			rc = SOCKET_ERROR; 	/* The return value from recv is 0 when the peer has performed an orderly shutdown. */
+	}
+#endif
 	else if (rc == 1)
 	{
 		SocketBuffer_queueChar(socket, *c);
@@ -933,8 +950,15 @@ char *SSLSocket_getdata(SSL* ssl, SOCKET socket, size_t bytes, size_t* actual_le
 		}
 		else if (*rc == 0) /* rc 0 means the other end closed the socket */
 		{
-			buf = NULL;
-			goto exit;
+#if defined(WITH_OPENSSL_QUIC)
+			if (!SSLSocket_is_quic_closed(ssl))
+				*rc = TCPSOCKET_INTERRUPTED;
+			else
+#endif
+			{
+				buf = NULL;
+				goto exit;
+			}
 		}
 		else
 			*actual_len += *rc;
@@ -1028,10 +1052,15 @@ int SSLSocket_putdatas(SSL* ssl, SOCKET socket, char* buf0, size_t buf0len, Pack
 	ERR_clear_error();
 	if ((rc = SSL_write(ssl, iovec.iov_base, iovec.iov_len)) == iovec.iov_len)
 		rc = TCPSOCKET_COMPLETE;
-	else
+	else if (rc <= 0)
 	{
+#if defined(WITH_OPENSSL_QUIC)
+		if (rc == 0 && SSLSocket_is_quic_closed(ssl))
+			{
+				rc = SOCKET_ERROR;
+			}
+#endif
 		sslerror = SSLSocket_error("SSL_write", ssl, socket, rc, NULL, NULL);
-
 		if (sslerror == SSL_ERROR_WANT_WRITE)
 		{
 			SOCKET* sockmem = (SOCKET*)malloc(sizeof(SOCKET));
@@ -1142,5 +1171,14 @@ int SSLSocket_abortWrite(pending_writes* pw)
 	free(pw->iovecs[0].iov_base);
 	FUNC_EXIT_RC(rc);
 	return rc;
+}
+#endif
+
+#if defined(WITH_OPENSSL_QUIC)
+static int SSLSocket_is_quic_closed(SSL* ssl)
+{
+	SSL_CONN_CLOSE_INFO close_info = {0};
+	int ret = SSL_get_conn_close_info(ssl, &close_info, sizeof(SSL_CONN_CLOSE_INFO));
+	return ret;
 }
 #endif

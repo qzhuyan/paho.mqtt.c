@@ -318,8 +318,21 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 						aClient->sslopts->verify, aClient->sslopts->ssl_error_cb, aClient->sslopts->ssl_error_context) :
 					SSLSocket_connect(aClient->net.ssl, aClient->net.socket, address,
 						aClient->sslopts->verify, NULL, NULL);
+				// in this fun scope, 0 means success
+				if (rc == 1)
+				{
+#if defined(WITH_OPENSSL_QUIC)
+					SSL_set_blocking_mode(aClient->net.ssl, 0);
+#endif
+					rc = 0;
+				}
+
 				if (rc == TCPSOCKET_INTERRUPTED)
 					aClient->connect_state = SSL_IN_PROGRESS; /* SSL connect called - wait for completion */
+				else if (!rc)
+				{
+					aClient->connect_state = NOT_IN_PROGRESS;
+				}
 			}
 			else
 				rc = SOCKET_ERROR;
@@ -342,11 +355,7 @@ int MQTTProtocol_connect(const char* address, Clients* aClient, int unixsock, in
 				aClient->connect_state = WEBSOCKET_IN_PROGRESS; /* Websocket connect called - wait for completion */
 		}
 
-#ifdef OPENSSL
-		if (rc == 0 || (rc == 1 && ssl == 2))
-#else
 		if (rc == 0)
-#endif
 		{
 			/* Now send the MQTT connect packet */
 			if ((rc = MQTTPacket_send_connect(aClient, MQTTVersion, connectProperties, willProperties)) == 0)
